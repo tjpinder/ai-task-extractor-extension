@@ -2,18 +2,25 @@
 
 // Create context menu on install
 chrome.runtime.onInstalled.addListener(() => {
+  // Create context menu for extracting tasks from full page
+  chrome.contextMenus.create({
+    id: 'extract-tasks-page',
+    title: 'Extract Tasks from Page',
+    contexts: ['page'],
+  });
+
   // Create context menu for extracting tasks from selected text
   chrome.contextMenus.create({
-    id: 'extract-tasks',
-    title: 'Extract Tasks with AI',
-    contexts: ['page', 'selection'],
+    id: 'extract-tasks-selection',
+    title: 'Extract Tasks from Selection',
+    contexts: ['selection'],
   });
 
   // Initialize default settings if not exists
-  chrome.storage.sync.get('settings', (result) => {
-    if (!result.settings) {
-      chrome.storage.sync.set({
-        settings: {
+  chrome.storage.local.get('ate_settings', (result) => {
+    if (!result.ate_settings) {
+      chrome.storage.local.set({
+        ate_settings: {
           aiProvider: 'openai',
           openaiApiKey: '',
           anthropicApiKey: '',
@@ -27,6 +34,7 @@ chrome.runtime.onInstalled.addListener(() => {
           autoSelectAll: true,
           isPro: false,
           licenseKey: '',
+          theme: 'system',
         },
       });
     }
@@ -37,10 +45,21 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'extract-tasks' && tab?.id) {
-    // Open popup or trigger extraction
-    // For now, we'll open the popup
-    chrome.action.openPopup();
+  if (info.menuItemId === 'extract-tasks-page' && tab?.id) {
+    // Store that we want full page extraction, then open popup
+    chrome.storage.local.set({ ate_extract_mode: 'page' }, () => {
+      chrome.action.openPopup();
+    });
+  }
+
+  if (info.menuItemId === 'extract-tasks-selection' && tab?.id && info.selectionText) {
+    // Store selected text for extraction, then open popup
+    chrome.storage.local.set({
+      ate_extract_mode: 'selection',
+      ate_selected_text: info.selectionText,
+    }, () => {
+      chrome.action.openPopup();
+    });
   }
 });
 

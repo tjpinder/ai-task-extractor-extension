@@ -6,6 +6,28 @@ import type {
   TierLimits,
 } from '../types';
 
+// Device ID for single-user license enforcement
+const DEVICE_ID_KEY = 'ate_device_id';
+
+function generateDeviceId(): string {
+  const segments: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    segments.push(Math.random().toString(16).substring(2, 6));
+  }
+  const timestamp = Date.now().toString(16);
+  return `${segments.join('-')}-${timestamp}`;
+}
+
+export async function getDeviceId(): Promise<string> {
+  const result = await chrome.storage.local.get(DEVICE_ID_KEY);
+  if (result[DEVICE_ID_KEY]) {
+    return result[DEVICE_ID_KEY];
+  }
+  const deviceId = generateDeviceId();
+  await chrome.storage.local.set({ [DEVICE_ID_KEY]: deviceId });
+  return deviceId;
+}
+
 const STORAGE_KEYS = {
   SETTINGS: 'ate_settings',
   HISTORY: 'ate_history',
@@ -26,6 +48,8 @@ const DEFAULT_SETTINGS: Settings = {
   clickupListId: '',
   licenseKey: '',
   isPro: false,
+  theme: 'system',
+  autoSelectAll: true,
 };
 
 // Settings
@@ -134,29 +158,31 @@ export async function canExtract(): Promise<{ allowed: boolean; remaining: numbe
   return { allowed: remaining > 0, remaining: Math.max(0, remaining) };
 }
 
-// License validation
-export async function validateLicense(licenseKey: string): Promise<boolean> {
+// License validation with device binding
+export async function validateLicense(licenseKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
+    const deviceId = await getDeviceId();
     const response = await fetch(
-      'https://app-tsv-02.azurewebsites.net/api/v1/licenses/validate',
+      'https://app-tsv-02.azurewebsites.net/api/v1/license/validate',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           licenseKey,
-          product: 'ai_task_extractor_extension',
+          deviceId,
         }),
       }
     );
 
-    if (!response.ok) {
-      return false;
+    const data = await response.json();
+
+    if (data.valid) {
+      return { valid: true };
     }
 
-    const data = await response.json();
-    return data.valid === true;
+    return { valid: false, error: data.error || 'Invalid license key' };
   } catch {
-    return false;
+    return { valid: false, error: 'Failed to validate license. Please check your connection.' };
   }
 }
 

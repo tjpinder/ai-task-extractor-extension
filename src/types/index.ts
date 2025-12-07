@@ -88,6 +88,9 @@ export interface HistoryEntry {
   extractedAt: number;
 }
 
+// Theme preference
+export type ThemePreference = 'light' | 'dark' | 'system';
+
 // Settings
 export interface Settings {
   aiProvider: AIProvider;
@@ -102,6 +105,8 @@ export interface Settings {
   clickupListId: string;
   licenseKey: string;
   isPro: boolean;
+  theme: ThemePreference;
+  autoSelectAll: boolean;
 }
 
 // Tier limits

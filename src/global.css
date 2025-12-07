@@ -14,6 +14,13 @@ body {
   line-height: 1.5;
   color: #1f2937;
   background-color: #ffffff;
+  min-width: 400px;
+}
+
+/* Dark mode body */
+body.dark {
+  color: #f3f4f6;
+  background-color: #111827;
 }
 
 /* Scrollbar styling */
@@ -26,18 +33,34 @@ body {
   border-radius: 3px;
 }
 
+.dark ::-webkit-scrollbar-track {
+  background: #374151;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #6b7280;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
 /* Custom utilities */
 .card {
   @apply bg-white rounded-lg border border-gray-200 p-4 shadow-sm;
+}
+
+.dark .card {
+  @apply bg-gray-800 border-gray-700;
 }
 
 .btn-primary {
@@ -48,12 +71,24 @@ body {
   @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-colors;
 }
 
+.dark .btn-secondary {
+  @apply bg-gray-700 text-gray-200 hover:bg-gray-600;
+}
+
 .btn-outline {
   @apply border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors;
 }
 
+.dark .btn-outline {
+  @apply border-gray-600 text-gray-300 hover:bg-gray-700;
+}
+
 .input {
   @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+}
+
+.dark .input {
+  @apply bg-gray-800 border-gray-600 text-gray-100;
 }
 
 .badge {
@@ -62,4 +97,17 @@ body {
 
 .checkbox {
   @apply w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500;
+}
+
+.dark .checkbox {
+  @apply border-gray-600 bg-gray-700;
+}
+
+/* Editable task input */
+.task-edit-input {
+  @apply w-full bg-transparent border-b border-primary-500 focus:outline-none py-0.5;
+}
+
+.dark .task-edit-input {
+  @apply text-gray-100;
 }
