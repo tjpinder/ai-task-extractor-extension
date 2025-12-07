@@ -1,10 +1,18 @@
 /**
  * Extension Bundle System
  * Cross-promotion and bundle discount functionality
+ * Integrated with A/B testing for optimization
  */
 
 import { getSettings, getDeviceId } from './storage';
 import { trackCrossPromoShown, trackCrossPromoClicked, track } from './analytics';
+import {
+  getBundleDiscountConfig,
+  getPromoMessagingConfig,
+  getPromoTimingConfig,
+  recordConversion,
+  getVariant,
+} from './ab-testing';
 
 // Bundle API endpoint
 const BUNDLE_API = 'https://app-tsv-02.azurewebsites.net/api/v1/bundles';
@@ -14,6 +22,8 @@ const BUNDLE_STORAGE = {
   OWNED_EXTENSIONS: 'ate_owned_extensions',
   PROMO_DISMISSED: 'ate_promo_dismissed',
   LAST_PROMO_SHOWN: 'ate_last_promo_shown',
+  USE_COUNT: 'ate_use_count',
+  FIRST_USE_DATE: 'ate_first_use_date',
 } as const;
 
 // Extension definitions
@@ -167,7 +177,45 @@ export async function getRecommendedBundle(): Promise<Bundle | null> {
 }
 
 /**
- * Check if promo should be shown
+ * Track extension use for A/B test timing
+ */
+export async function trackExtensionUse(): Promise<void> {
+  const result = await chrome.storage.local.get([
+    BUNDLE_STORAGE.USE_COUNT,
+    BUNDLE_STORAGE.FIRST_USE_DATE,
+  ]);
+
+  const useCount = (result[BUNDLE_STORAGE.USE_COUNT] || 0) + 1;
+
+  await chrome.storage.local.set({
+    [BUNDLE_STORAGE.USE_COUNT]: useCount,
+    [BUNDLE_STORAGE.FIRST_USE_DATE]: result[BUNDLE_STORAGE.FIRST_USE_DATE] || new Date().toISOString(),
+  });
+}
+
+/**
+ * Get use stats for promo timing
+ */
+async function getUseStats(): Promise<{ useCount: number; daysSinceFirst: number }> {
+  const result = await chrome.storage.local.get([
+    BUNDLE_STORAGE.USE_COUNT,
+    BUNDLE_STORAGE.FIRST_USE_DATE,
+  ]);
+
+  const useCount = result[BUNDLE_STORAGE.USE_COUNT] || 0;
+  const firstUseDate = result[BUNDLE_STORAGE.FIRST_USE_DATE];
+
+  let daysSinceFirst = 0;
+  if (firstUseDate) {
+    const diff = Date.now() - new Date(firstUseDate).getTime();
+    daysSinceFirst = Math.floor(diff / (24 * 60 * 60 * 1000));
+  }
+
+  return { useCount, daysSinceFirst };
+}
+
+/**
+ * Check if promo should be shown (A/B test aware)
  */
 export async function shouldShowPromo(): Promise<boolean> {
   const settings = await getSettings();
@@ -197,6 +245,18 @@ export async function shouldShowPromo(): Promise<boolean> {
     const lastShownDate = new Date(lastShown);
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     if (lastShownDate > oneDayAgo) return false;
+  }
+
+  // Get A/B test timing config
+  const timingConfig = await getPromoTimingConfig();
+  const useStats = await getUseStats();
+
+  // Check if timing requirements met (from A/B test)
+  if (useStats.daysSinceFirst < timingConfig.showAfterDays) {
+    return false;
+  }
+  if (useStats.useCount < timingConfig.showAfterUses) {
+    return false;
   }
 
   // Show promo to free users or users with only one extension
@@ -303,4 +363,134 @@ export async function syncOwnedExtensions(): Promise<ExtensionId[]> {
   }
 
   return await getOwnedExtensions();
+}
+
+// ============================================
+// A/B Test Integrated Functions
+// ============================================
+
+/**
+ * Promo configuration with A/B test variants applied
+ */
+export interface PromoConfig {
+  bundle: Bundle;
+  pricing: {
+    originalPrice: number;
+    bundlePrice: number;
+    discountPercent: number;
+    discountText: string;
+  };
+  messaging: {
+    headline: string;
+    showUrgency: boolean;
+    urgencyText: string;
+    showSocialProof: boolean;
+    socialText: string;
+  };
+  display: {
+    style: 'modal' | 'banner';
+  };
+  variantIds: {
+    discount?: string;
+    messaging?: string;
+    timing?: string;
+    style?: string;
+  };
+}
+
+/**
+ * Get full promo configuration with A/B test variants applied
+ */
+export async function getPromoConfig(): Promise<PromoConfig | null> {
+  const bundle = await getRecommendedBundle();
+  if (!bundle) return null;
+
+  // Get A/B test configurations
+  const [discountConfig, messagingConfig, timingConfig] = await Promise.all([
+    getBundleDiscountConfig(),
+    getPromoMessagingConfig(),
+    getPromoTimingConfig(),
+  ]);
+
+  // Get variant IDs for tracking
+  const [discountVariant, messagingVariant, timingVariant, styleVariant] = await Promise.all([
+    getVariant('bundle-discount-001'),
+    getVariant('urgency-messaging-001'),
+    getVariant('promo-timing-001'),
+    getVariant('promo-style-001'),
+  ]);
+
+  // Apply variant discount to bundle pricing
+  let bundlePrice = bundle.bundlePrice;
+  let discountText = `${bundle.discountPercent}% OFF`;
+
+  if (discountConfig.discountType === 'fixed') {
+    bundlePrice = bundle.originalPrice - discountConfig.discountAmount;
+    discountText = `$${discountConfig.discountAmount} OFF`;
+  } else if (discountConfig.discountPercent !== bundle.discountPercent) {
+    bundlePrice = Math.round(bundle.originalPrice * (1 - discountConfig.discountPercent / 100));
+    discountText = `${discountConfig.discountPercent}% OFF`;
+  }
+
+  const actualDiscount = Math.round((1 - bundlePrice / bundle.originalPrice) * 100);
+
+  return {
+    bundle,
+    pricing: {
+      originalPrice: bundle.originalPrice,
+      bundlePrice,
+      discountPercent: actualDiscount,
+      discountText,
+    },
+    messaging: {
+      headline: messagingConfig.headline,
+      showUrgency: messagingConfig.showUrgency,
+      urgencyText: messagingConfig.urgencyText,
+      showSocialProof: messagingConfig.showSocialProof,
+      socialText: messagingConfig.socialText,
+    },
+    display: {
+      style: timingConfig.displayStyle,
+    },
+    variantIds: {
+      discount: discountVariant?.id,
+      messaging: messagingVariant?.id,
+      timing: timingVariant?.id,
+      style: styleVariant?.id,
+    },
+  };
+}
+
+/**
+ * Record bundle purchase conversion for A/B tests
+ */
+export async function recordBundlePurchase(bundleId: string, amount: number): Promise<void> {
+  // Record conversion for active A/B tests
+  await Promise.all([
+    recordConversion('bundle-discount-001', amount),
+    recordConversion('bundle-price-type-001', amount),
+  ]);
+
+  // Track the purchase event
+  await track('bundle_purchase_completed', {
+    bundleId,
+    amount,
+  });
+}
+
+/**
+ * Record promo click conversion for A/B tests
+ */
+export async function recordPromoClickConversion(bundleId: string): Promise<void> {
+  // Record conversion for messaging/UX tests
+  await Promise.all([
+    recordConversion('urgency-messaging-001'),
+    recordConversion('social-proof-001'),
+    recordConversion('benefit-vs-feature-001'),
+    recordConversion('promo-timing-001'),
+    recordConversion('promo-style-001'),
+  ]);
+
+  // Also call the existing click tracking
+  await recordPromoClicked(bundleId);
 }

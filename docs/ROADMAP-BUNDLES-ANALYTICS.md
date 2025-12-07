@@ -1,7 +1,8 @@
 # Startvest Extensions - Bundles, Analytics & A/B Testing Roadmap
 
-> **Status:** In Progress - Phase 1 partially complete
+> **Status:** ✅ Phases 1-4 Complete - Ready for Optimization (Phase 5)
 > **Created:** 2025-12-06
+> **Updated:** 2025-12-07
 > **Priority:** Post-MVP
 
 ---
@@ -321,23 +322,33 @@ track('cross_promo_dismissed', { bundle, variant, location });
 - [x] Database migration for ab_tests and ab_test_assignments tables
 - [x] Dashboard integration for A/B test management (ExtensionAnalyticsDashboard.jsx)
 
-### Phase 3: Bundle System (Week 5-6)
+### Phase 3: Bundle System (Week 5-6) ✅ COMPLETE
 - [x] Bundle configuration in backend (bundles.controller.ts with 4 bundles)
 - [x] Cross-promo components in extensions (bundles.ts library)
-- [ ] Bundle checkout flow
-- [ ] Bundle-specific Stripe products
+- [x] Bundle checkout flow (integrated with PaymentManagerService)
+- [x] Bundle-specific Stripe products (dynamic price_data in checkout)
+- [x] Checkout session verification endpoint
 
-### Phase 4: Advanced Analytics (Week 7-8)
-- [ ] Cohort analysis
-- [ ] Funnel visualization
-- [ ] Revenue attribution
-- [ ] Churn prediction
+### Phase 4: Advanced Analytics (Week 7-8) ✅ COMPLETE
+- [x] Cohort analysis (getCohortAnalysis in service, /extensions/cohorts endpoint)
+- [x] Funnel visualization (getFunnelAnalysis for upgrade + bundle funnels)
+- [x] Revenue attribution (getRevenueAttribution by bundle, extension, source)
+- [x] Churn prediction (getChurnRiskUsers with risk scoring algorithm)
+- [x] Advanced Analytics tab in dashboard (cohort heatmap, funnel chart, revenue breakdown, churn list)
 
-### Phase 5: Optimization (Ongoing)
-- [ ] Run pricing A/B tests
-- [ ] Optimize bundle compositions
-- [ ] Test messaging variants
-- [ ] Iterate based on data
+### Phase 5: Optimization (Ongoing) 🚀 IN PROGRESS
+- [x] Created 7 initial A/B tests (seed script: src/database/seeds/ab-tests.seed.ts)
+  - `bundle-discount-001`: 15% vs 25% vs 35% discount (RUNNING)
+  - `bundle-price-type-001`: Fixed $10 off vs 25% off (RUNNING)
+  - `urgency-messaging-001`: Limited time messaging (RUNNING)
+  - `social-proof-001`: "Trusted by 2,000+ users" messaging
+  - `benefit-vs-feature-001`: Feature vs benefit focused copy
+  - `promo-timing-001`: Immediate vs after 3 uses vs after 7 days
+  - `promo-style-001`: Modal popup vs inline banner
+- [x] Integrated A/B testing into extension bundle libraries (ab-testing.ts)
+- [x] Added variant-aware promo configuration (getPromoConfig in bundles.ts)
+- [ ] Monitor test results and declare winners
+- [ ] Iterate on winning variants
 
 ---
 
