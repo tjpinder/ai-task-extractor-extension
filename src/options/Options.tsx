@@ -1,30 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import type { Settings, HistoryEntry } from '../types';
-import { getSettings, saveSettings, getHistory, clearHistory } from '../lib/storage';
+import type { Settings, HistoryEntry, AnalyticsData, ExtractionRule, TaskCategory, TaskPriority } from '../types';
+import {
+  EXTRACTION_MODE_LABELS,
+  CATEGORY_LABELS,
+  PRIORITY_LABELS,
+  EXPORT_LABELS,
+} from '../types';
+import { getSettings, saveSettings, getHistory, clearHistory, getAnalytics, clearAnalytics, generateId } from '../lib/storage';
 
-type Tab = 'general' | 'integrations' | 'history' | 'license';
+type Tab = 'general' | 'integrations' | 'rules' | 'analytics' | 'history' | 'license';
 
 const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [licenseKey, setLicenseKey] = useState('');
   const [licenseError, setLicenseError] = useState('');
   const [activating, setActivating] = useState(false);
+  const [editingRule, setEditingRule] = useState<ExtractionRule | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   async function loadData() {
-    const [loadedSettings, loadedHistory] = await Promise.all([
+    const [loadedSettings, loadedHistory, loadedAnalytics] = await Promise.all([
       getSettings(),
       getHistory(),
+      getAnalytics(),
     ]);
     setSettings(loadedSettings);
     setHistory(loadedHistory);
+    setAnalytics(loadedAnalytics);
   }
 
   async function handleSave() {
@@ -110,8 +120,8 @@ const Options: React.FC = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
-          {(['general', 'integrations', 'history', 'license'] as Tab[]).map((tab) => (
+        <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
+          {(['general', 'integrations', 'rules', 'analytics', 'history', 'license'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -582,6 +592,437 @@ const Options: React.FC = () => {
           </div>
         )}
 
+        {/* Rules Tab */}
+        {activeTab === 'rules' && (
+          <div className="space-y-6">
+            {!settings.isPro && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🔒</span>
+                  <div>
+                    <h3 className="font-medium text-amber-800">Pro Feature</h3>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Custom extraction rules are available with a Pro license.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('license')}
+                      className="mt-2 text-sm font-medium text-amber-800 hover:underline"
+                    >
+                      Activate License →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className={`card ${!settings.isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Extraction Rules</h2>
+                <button
+                  onClick={() => {
+                    const newRule: ExtractionRule = {
+                      id: generateId(),
+                      name: 'New Rule',
+                      enabled: true,
+                      type: 'keyword',
+                      value: '',
+                      action: { priority: 'high' },
+                    };
+                    setEditingRule(newRule);
+                  }}
+                  disabled={!settings.isPro}
+                  className="btn-primary text-sm"
+                >
+                  Add Rule
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Create rules to automatically prioritize or filter tasks based on keywords.
+              </p>
+
+              {settings.extractionRules.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No rules configured</p>
+              ) : (
+                <div className="space-y-3">
+                  {settings.extractionRules.map((rule) => (
+                    <div
+                      key={rule.id}
+                      className="p-4 border border-gray-200 rounded-lg flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={rule.enabled}
+                          onChange={(e) => {
+                            const updatedRules = settings.extractionRules.map((r) =>
+                              r.id === rule.id ? { ...r, enabled: e.target.checked } : r
+                            );
+                            updateSettings('extractionRules', updatedRules);
+                          }}
+                          disabled={!settings.isPro}
+                          className="checkbox"
+                        />
+                        <div>
+                          <p className="font-medium text-gray-900">{rule.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {rule.type === 'keyword' && (
+                              <>Keywords: {rule.value.split(',').slice(0, 3).join(', ')}{rule.value.split(',').length > 3 ? '...' : ''}</>
+                            )}
+                            {rule.type === 'ignore' && (
+                              <>Ignore: {rule.value.split(',').slice(0, 3).join(', ')}{rule.value.split(',').length > 3 ? '...' : ''}</>
+                            )}
+                            {rule.type === 'pattern' && <>Pattern: {rule.value}</>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`badge ${
+                          rule.type === 'keyword' ? 'bg-blue-100 text-blue-700' :
+                          rule.type === 'ignore' ? 'bg-gray-100 text-gray-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>
+                          {rule.type}
+                        </span>
+                        {rule.action.priority && (
+                          <span className={`badge ${
+                            rule.action.priority === 'high' ? 'bg-red-100 text-red-700' :
+                            rule.action.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {rule.action.priority}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setEditingRule(rule)}
+                          disabled={!settings.isPro}
+                          className="p-2 text-gray-500 hover:text-gray-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            const updatedRules = settings.extractionRules.filter((r) => r.id !== rule.id);
+                            updateSettings('extractionRules', updatedRules);
+                          }}
+                          disabled={!settings.isPro}
+                          className="p-2 text-red-500 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Rule Editor Modal */}
+            {editingRule && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    {settings.extractionRules.find((r) => r.id === editingRule.id) ? 'Edit Rule' : 'New Rule'}
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
+                      <input
+                        type="text"
+                        value={editingRule.name}
+                        onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })}
+                        className="input"
+                        placeholder="e.g., Urgent Keywords"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rule Type</label>
+                      <select
+                        value={editingRule.type}
+                        onChange={(e) => setEditingRule({ ...editingRule, type: e.target.value as ExtractionRule['type'] })}
+                        className="input"
+                      >
+                        <option value="keyword">Keyword (priority boost)</option>
+                        <option value="ignore">Ignore (skip matching items)</option>
+                        <option value="pattern">Pattern (regex)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {editingRule.type === 'pattern' ? 'Regex Pattern' : 'Keywords (comma-separated)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={editingRule.value}
+                        onChange={(e) => setEditingRule({ ...editingRule, value: e.target.value })}
+                        className="input"
+                        placeholder={editingRule.type === 'pattern' ? '^URGENT:.*' : 'urgent, asap, critical'}
+                      />
+                    </div>
+
+                    {editingRule.type !== 'ignore' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Set Priority</label>
+                          <select
+                            value={editingRule.action.priority || ''}
+                            onChange={(e) => setEditingRule({
+                              ...editingRule,
+                              action: { ...editingRule.action, priority: e.target.value as TaskPriority || undefined }
+                            })}
+                            className="input"
+                          >
+                            <option value="">No change</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Set Category</label>
+                          <select
+                            value={editingRule.action.category || ''}
+                            onChange={(e) => setEditingRule({
+                              ...editingRule,
+                              action: { ...editingRule.action, category: e.target.value as TaskCategory || undefined }
+                            })}
+                            className="input"
+                          >
+                            <option value="">No change</option>
+                            <option value="action">Action Item</option>
+                            <option value="follow-up">Follow-up</option>
+                            <option value="decision">Decision Needed</option>
+                            <option value="deadline">Deadline</option>
+                            <option value="question">Question</option>
+                            <option value="idea">Idea</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3 mt-6">
+                    <button onClick={() => setEditingRule(null)} className="btn-secondary">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        const existingIndex = settings.extractionRules.findIndex((r) => r.id === editingRule.id);
+                        let updatedRules: ExtractionRule[];
+                        if (existingIndex >= 0) {
+                          updatedRules = settings.extractionRules.map((r) =>
+                            r.id === editingRule.id ? editingRule : r
+                          );
+                        } else {
+                          updatedRules = [...settings.extractionRules, editingRule];
+                        }
+                        updateSettings('extractionRules', updatedRules);
+                        setEditingRule(null);
+                      }}
+                      className="btn-primary"
+                    >
+                      Save Rule
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {!settings.isPro && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🔒</span>
+                  <div>
+                    <h3 className="font-medium text-amber-800">Pro Feature</h3>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Analytics dashboard is available with a Pro license.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('license')}
+                      className="mt-2 text-sm font-medium text-amber-800 hover:underline"
+                    >
+                      Activate License →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {analytics && (
+              <div className={!settings.isPro ? 'opacity-60' : ''}>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="card text-center">
+                    <p className="text-3xl font-bold text-primary-600">{analytics.totalExtractions}</p>
+                    <p className="text-sm text-gray-600">Total Extractions</p>
+                  </div>
+                  <div className="card text-center">
+                    <p className="text-3xl font-bold text-primary-600">{analytics.totalTasksExtracted}</p>
+                    <p className="text-sm text-gray-600">Tasks Extracted</p>
+                  </div>
+                  <div className="card text-center">
+                    <p className="text-3xl font-bold text-primary-600">{analytics.averageTasksPerExtraction}</p>
+                    <p className="text-sm text-gray-600">Avg Tasks/Extraction</p>
+                  </div>
+                  <div className="card text-center">
+                    <p className="text-3xl font-bold text-primary-600">
+                      {analytics.mostActiveDay ? new Date(analytics.mostActiveDay).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '-'}
+                    </p>
+                    <p className="text-sm text-gray-600">Most Active Day</p>
+                  </div>
+                </div>
+
+                {/* Breakdown by Mode */}
+                <div className="card mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Extractions by Mode</h3>
+                  <div className="space-y-3">
+                    {Object.entries(analytics.extractionsByMode).map(([mode, count]) => {
+                      const total = Object.values(analytics.extractionsByMode).reduce((a, b) => a + b, 0);
+                      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+                      return (
+                        <div key={mode}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-700">{EXTRACTION_MODE_LABELS[mode as keyof typeof EXTRACTION_MODE_LABELS] || mode}</span>
+                            <span className="text-gray-500">{count} ({percentage}%)</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-primary-500 h-2 rounded-full"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Breakdown by Priority & Category */}
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                  <div className="card">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Tasks by Priority</h3>
+                    <div className="space-y-3">
+                      {Object.entries(analytics.extractionsByPriority).map(([priority, count]) => {
+                        const total = Object.values(analytics.extractionsByPriority).reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+                        const colors: Record<string, string> = {
+                          high: 'bg-red-500',
+                          medium: 'bg-amber-500',
+                          low: 'bg-green-500',
+                        };
+                        return (
+                          <div key={priority}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-700">{PRIORITY_LABELS[priority as keyof typeof PRIORITY_LABELS] || priority}</span>
+                              <span className="text-gray-500">{count}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`${colors[priority] || 'bg-gray-500'} h-2 rounded-full`}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Tasks by Category</h3>
+                    <div className="space-y-2">
+                      {Object.entries(analytics.extractionsByCategory)
+                        .filter(([, count]) => count > 0)
+                        .sort(([, a], [, b]) => b - a)
+                        .slice(0, 5)
+                        .map(([category, count]) => (
+                          <div key={category} className="flex justify-between text-sm">
+                            <span className="text-gray-700">{CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS] || category}</span>
+                            <span className="text-gray-500">{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Export Destinations */}
+                <div className="card mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Destinations</h3>
+                  {Object.values(analytics.exportsByDestination).every((v) => v === 0) ? (
+                    <p className="text-gray-500 text-sm">No exports yet</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {Object.entries(analytics.exportsByDestination)
+                        .filter(([, count]) => count > 0)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([destination, count]) => (
+                          <div key={destination} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <span className="text-sm text-gray-700">{EXPORT_LABELS[destination as keyof typeof EXPORT_LABELS] || destination}</span>
+                            <span className="text-sm font-medium text-gray-900">{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Daily Activity */}
+                {analytics.dailyStats.length > 0 && (
+                  <div className="card mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity (Last 30 Days)</h3>
+                    <div className="flex items-end gap-1 h-32">
+                      {analytics.dailyStats.slice(-30).map((day) => {
+                        const maxTasks = Math.max(...analytics.dailyStats.map((d) => d.tasks), 1);
+                        const height = Math.max((day.tasks / maxTasks) * 100, 4);
+                        return (
+                          <div
+                            key={day.date}
+                            className="flex-1 bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-default"
+                            style={{ height: `${height}%` }}
+                            title={`${new Date(day.date).toLocaleDateString()}: ${day.extractions} extractions, ${day.tasks} tasks`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-2">
+                      <span>
+                        {analytics.dailyStats.length > 0 &&
+                          new Date(analytics.dailyStats[Math.max(0, analytics.dailyStats.length - 30)].date).toLocaleDateString()}
+                      </span>
+                      <span>Today</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Clear Analytics */}
+                <div className="text-center">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to clear all analytics data?')) {
+                        await clearAnalytics();
+                        const freshAnalytics = await getAnalytics();
+                        setAnalytics(freshAnalytics);
+                      }
+                    }}
+                    disabled={!settings.isPro}
+                    className="text-sm text-red-500 hover:underline"
+                  >
+                    Clear Analytics Data
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* History Tab */}
         {activeTab === 'history' && (
           <div className="card">
@@ -707,7 +1148,7 @@ const Options: React.FC = () => {
         )}
 
         {/* Save Button */}
-        {(activeTab === 'general' || activeTab === 'integrations') && (
+        {(activeTab === 'general' || activeTab === 'integrations' || activeTab === 'rules') && (
           <div className="mt-6 flex items-center justify-end gap-4">
             {saved && <span className="text-green-600 text-sm">Settings saved!</span>}
             <button onClick={handleSave} disabled={saving} className="btn-primary">

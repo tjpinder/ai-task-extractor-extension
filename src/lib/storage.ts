@@ -4,7 +4,12 @@ import type {
   ExtractionResult,
   UsageData,
   TierLimits,
+  AnalyticsData,
+  ExtractionMode,
+  ExportDestination,
+  ExtractedTask,
 } from '../types';
+import { DEFAULT_EXTRACTION_RULES, EMPTY_ANALYTICS } from '../types';
 
 // Device ID for single-user license enforcement
 const DEVICE_ID_KEY = 'ate_device_id';
@@ -33,6 +38,7 @@ const STORAGE_KEYS = {
   HISTORY: 'ate_history',
   EXTRACTIONS: 'ate_extractions',
   USAGE: 'ate_usage',
+  ANALYTICS: 'ate_analytics',
 } as const;
 
 const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +64,9 @@ const DEFAULT_SETTINGS: Settings = {
   showConfidence: true,
   showTimeEstimates: true,
   showRecurring: true,
+  extractionRules: DEFAULT_EXTRACTION_RULES,
+  customTemplates: [],
+  keyboardShortcut: 'Alt+Shift+E',
 };
 
 // Settings
@@ -197,4 +206,72 @@ export async function validateLicense(licenseKey: string): Promise<{ valid: bool
 // Utility
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Analytics
+export async function getAnalytics(): Promise<AnalyticsData> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.ANALYTICS);
+  return result[STORAGE_KEYS.ANALYTICS] || { ...EMPTY_ANALYTICS };
+}
+
+export async function saveAnalytics(analytics: AnalyticsData): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEYS.ANALYTICS]: analytics });
+}
+
+export async function trackExtraction(
+  mode: ExtractionMode,
+  tasks: ExtractedTask[]
+): Promise<void> {
+  const analytics = await getAnalytics();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Update totals
+  analytics.totalExtractions += 1;
+  analytics.totalTasksExtracted += tasks.length;
+
+  // Update by mode
+  analytics.extractionsByMode[mode] = (analytics.extractionsByMode[mode] || 0) + 1;
+
+  // Update by category and priority
+  for (const task of tasks) {
+    analytics.extractionsByCategory[task.category] = (analytics.extractionsByCategory[task.category] || 0) + 1;
+    analytics.extractionsByPriority[task.priority] = (analytics.extractionsByPriority[task.priority] || 0) + 1;
+  }
+
+  // Update average
+  analytics.averageTasksPerExtraction = Math.round(
+    analytics.totalTasksExtracted / analytics.totalExtractions * 10
+  ) / 10;
+
+  // Update daily stats
+  const existingDay = analytics.dailyStats.find((d) => d.date === today);
+  if (existingDay) {
+    existingDay.extractions += 1;
+    existingDay.tasks += tasks.length;
+  } else {
+    analytics.dailyStats.push({ date: today, extractions: 1, tasks: tasks.length });
+    // Keep only last 30 days
+    if (analytics.dailyStats.length > 30) {
+      analytics.dailyStats = analytics.dailyStats.slice(-30);
+    }
+  }
+
+  // Find most active day
+  const maxExtractions = Math.max(...analytics.dailyStats.map((d) => d.extractions));
+  const mostActiveDay = analytics.dailyStats.find((d) => d.extractions === maxExtractions);
+  if (mostActiveDay) {
+    analytics.mostActiveDay = mostActiveDay.date;
+  }
+
+  await saveAnalytics(analytics);
+}
+
+export async function trackExport(destination: ExportDestination): Promise<void> {
+  const analytics = await getAnalytics();
+  analytics.exportsByDestination[destination] = (analytics.exportsByDestination[destination] || 0) + 1;
+  await saveAnalytics(analytics);
+}
+
+export async function clearAnalytics(): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEYS.ANALYTICS]: { ...EMPTY_ANALYTICS } });
 }

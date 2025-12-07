@@ -1,4 +1,4 @@
-import type { AIProvider, ExtractedTask, ExtractionMode, Settings, SubTask, RecurringPattern, TimeEstimate } from '../types';
+import type { AIProvider, ExtractedTask, ExtractionMode, Settings, SubTask, RecurringPattern, TimeEstimate, ExtractionRule } from '../types';
 import { buildExtractionPrompt } from './prompts';
 import { generateId } from './storage';
 
@@ -103,7 +103,8 @@ export async function extractTasks(
   content: string,
   title: string,
   settings: Settings,
-  mode: ExtractionMode = 'general'
+  mode: ExtractionMode = 'general',
+  customRules?: ExtractionRule[]
 ): Promise<ExtractedTask[]> {
   const apiKey = settings.aiProvider === 'openai'
     ? settings.openaiApiKey
@@ -113,7 +114,9 @@ export async function extractTasks(
     throw new Error(`Please configure your ${settings.aiProvider === 'openai' ? 'OpenAI' : 'Anthropic'} API key in settings`);
   }
 
-  const prompt = buildExtractionPrompt(content, title, mode);
+  // Use custom rules if provided, otherwise use settings rules
+  const rules = customRules || settings.extractionRules || [];
+  const prompt = buildExtractionPrompt(content, title, mode, rules);
   const response = await callAI(settings.aiProvider, apiKey, prompt);
 
   try {

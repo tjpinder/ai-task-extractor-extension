@@ -1,8 +1,11 @@
 /**
  * Startvest Extension Analytics
- * Shared analytics library for tracking extension usage and events
+ * Focused on bundle/cross-promo performance tracking
  *
- * Privacy: All tracking is opt-in and no PII is collected
+ * IMPORTANT: This is STRICTLY OPT-IN
+ * - No data is collected until user explicitly consents
+ * - No PII is ever collected
+ * - User can disable at any time, which clears all pending data
  */
 
 import { getSettings, getDeviceId } from './storage';
@@ -18,37 +21,24 @@ const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const ANALYTICS_STORAGE = {
   QUEUE: 'ate_analytics_queue',
   SESSION: 'ate_analytics_session',
-  CONSENT: 'ate_analytics_consent',
+  CONSENT: 'ate_analytics_consent',  // Must be explicitly true to track
   LAST_SYNC: 'ate_analytics_last_sync',
 } as const;
 
-// Event types that can be tracked
+// Event types - focused on bundle/promo performance
 export type AnalyticsEventType =
-  // Core extension events
-  | 'extension_installed'
-  | 'extension_opened'
-  | 'extension_uninstalled'
-  // Feature usage
-  | 'feature_used'
-  | 'extraction_started'
-  | 'extraction_completed'
-  | 'extraction_failed'
-  | 'task_edited'
-  | 'export_completed'
-  // Settings
-  | 'settings_changed'
-  // Upgrade events
+  // Upgrade funnel (to measure conversion)
   | 'upgrade_prompt_shown'
   | 'upgrade_prompt_clicked'
   | 'upgrade_prompt_dismissed'
-  | 'license_activated'
-  // Cross-promo events
+  // Cross-promo / Bundle events (PRIMARY FOCUS)
   | 'cross_promo_shown'
   | 'cross_promo_clicked'
   | 'cross_promo_dismissed'
   | 'bundle_viewed'
   | 'bundle_purchase_started'
-  // A/B test events
+  | 'bundle_purchase_completed'
+  // A/B test events (for optimizing promos)
   | 'ab_test_assigned'
   | 'ab_test_conversion';
 
@@ -121,26 +111,43 @@ async function getSession(): Promise<SessionData> {
 
 /**
  * Check if analytics is enabled (opt-in)
+ * Returns FALSE by default - user must explicitly consent
  */
 export async function isAnalyticsEnabled(): Promise<boolean> {
   const result = await chrome.storage.local.get(ANALYTICS_STORAGE.CONSENT);
+  // Must be explicitly true - undefined/null/false all mean disabled
   return result[ANALYTICS_STORAGE.CONSENT] === true;
 }
 
 /**
- * Enable analytics tracking
+ * Enable analytics tracking (requires explicit user consent)
  */
 export async function enableAnalytics(): Promise<void> {
   await chrome.storage.local.set({ [ANALYTICS_STORAGE.CONSENT]: true });
 }
 
 /**
- * Disable analytics tracking
+ * Disable analytics tracking and clear all pending data
  */
 export async function disableAnalytics(): Promise<void> {
   await chrome.storage.local.set({ [ANALYTICS_STORAGE.CONSENT]: false });
-  // Clear any pending events
+  // Clear any pending events immediately
   await chrome.storage.local.set({ [ANALYTICS_STORAGE.QUEUE]: { events: [] } });
+}
+
+/**
+ * Get description of what analytics tracks (for consent UI)
+ */
+export function getAnalyticsDescription(): string {
+  return `Help us improve by sharing anonymous data about which bundle offers you see and interact with. We only track:
+• Which bundle/discount offers are shown
+• Which offers you click or dismiss
+• A/B test variants for optimizing deals
+
+We NEVER collect:
+• Your personal information
+• Page content or URLs
+• Task data or any work content`;
 }
 
 /**
@@ -260,78 +267,12 @@ function sanitizeProperties(properties: Record<string, unknown>): Record<string,
 }
 
 // ============================================
-// Convenience tracking functions
+// Bundle & Promo Tracking Functions
+// These are the ONLY events tracked - focused on bundle performance
 // ============================================
 
 /**
- * Track extension opened
- */
-export async function trackExtensionOpened(trigger: 'icon' | 'shortcut' | 'context_menu' = 'icon'): Promise<void> {
-  await track('extension_opened', { trigger });
-}
-
-/**
- * Track feature usage
- */
-export async function trackFeatureUsed(feature: string, details?: Record<string, unknown>): Promise<void> {
-  await track('feature_used', { feature, ...details });
-}
-
-/**
- * Track extraction started
- */
-export async function trackExtractionStarted(pageType: string, contentLength: number): Promise<void> {
-  await track('extraction_started', { pageType, contentLength });
-}
-
-/**
- * Track extraction completed
- */
-export async function trackExtractionCompleted(
-  taskCount: number,
-  categories: string[],
-  durationMs: number
-): Promise<void> {
-  await track('extraction_completed', {
-    taskCount,
-    categoryCount: categories.length,
-    durationMs,
-  });
-}
-
-/**
- * Track extraction failed
- */
-export async function trackExtractionFailed(error: string): Promise<void> {
-  await track('extraction_failed', {
-    errorType: error.includes('rate') ? 'rate_limit' :
-               error.includes('auth') ? 'auth_error' : 'unknown'
-  });
-}
-
-/**
- * Track task edited
- */
-export async function trackTaskEdited(field: 'title' | 'priority' | 'category' | 'dueDate'): Promise<void> {
-  await track('task_edited', { field });
-}
-
-/**
- * Track export completed
- */
-export async function trackExportCompleted(destination: string, taskCount: number): Promise<void> {
-  await track('export_completed', { destination, taskCount });
-}
-
-/**
- * Track settings changed
- */
-export async function trackSettingsChanged(setting: string): Promise<void> {
-  await track('settings_changed', { setting });
-}
-
-/**
- * Track upgrade prompt shown
+ * Track upgrade prompt shown (to measure funnel)
  */
 export async function trackUpgradePromptShown(location: string, variant?: string): Promise<void> {
   await track('upgrade_prompt_shown', { location, variant });
@@ -345,7 +286,14 @@ export async function trackUpgradePromptClicked(location: string, variant?: stri
 }
 
 /**
- * Track cross-promo shown
+ * Track upgrade prompt dismissed
+ */
+export async function trackUpgradePromptDismissed(location: string, variant?: string): Promise<void> {
+  await track('upgrade_prompt_dismissed', { location, variant });
+}
+
+/**
+ * Track cross-promo/bundle offer shown
  */
 export async function trackCrossPromoShown(
   bundleId: string,
@@ -356,7 +304,7 @@ export async function trackCrossPromoShown(
 }
 
 /**
- * Track cross-promo clicked
+ * Track cross-promo/bundle offer clicked
  */
 export async function trackCrossPromoClicked(
   bundleId: string,
@@ -367,7 +315,39 @@ export async function trackCrossPromoClicked(
 }
 
 /**
- * Track A/B test assignment
+ * Track cross-promo/bundle offer dismissed
+ */
+export async function trackCrossPromoDismissed(
+  bundleId: string,
+  variant: string,
+  location: string
+): Promise<void> {
+  await track('cross_promo_dismissed', { bundleId, variant, location });
+}
+
+/**
+ * Track bundle page viewed
+ */
+export async function trackBundleViewed(bundleId: string, source: string): Promise<void> {
+  await track('bundle_viewed', { bundleId, source });
+}
+
+/**
+ * Track bundle purchase started (clicked checkout)
+ */
+export async function trackBundlePurchaseStarted(bundleId: string, price: number): Promise<void> {
+  await track('bundle_purchase_started', { bundleId, price });
+}
+
+/**
+ * Track bundle purchase completed
+ */
+export async function trackBundlePurchaseCompleted(bundleId: string, price: number): Promise<void> {
+  await track('bundle_purchase_completed', { bundleId, price });
+}
+
+/**
+ * Track A/B test assignment (for promo optimization)
  */
 export async function trackABTestAssigned(testId: string, variantId: string): Promise<void> {
   await track('ab_test_assigned', { testId, variantId });

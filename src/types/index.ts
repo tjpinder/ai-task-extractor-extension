@@ -180,6 +180,9 @@ export interface Settings {
   showConfidence: boolean;
   showTimeEstimates: boolean;
   showRecurring: boolean;
+  extractionRules: ExtractionRule[];
+  customTemplates: TaskTemplate[];
+  keyboardShortcut: string;
 }
 
 // Tier limits
@@ -206,6 +209,105 @@ export interface UsageData {
   date: string;
   extractionsCount: number;
 }
+
+// Custom extraction rules
+export interface ExtractionRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  type: 'keyword' | 'pattern' | 'ignore';
+  value: string; // keyword, regex pattern, or phrase to ignore
+  action: {
+    priority?: TaskPriority;
+    category?: TaskCategory;
+  };
+}
+
+export const DEFAULT_EXTRACTION_RULES: ExtractionRule[] = [
+  { id: 'urgent', name: 'Urgent keywords', enabled: true, type: 'keyword', value: 'urgent,asap,critical,immediately', action: { priority: 'high' } },
+  { id: 'deadline', name: 'Deadline keywords', enabled: true, type: 'keyword', value: 'deadline,due date,by end of', action: { category: 'deadline', priority: 'high' } },
+  { id: 'fyi', name: 'FYI (ignore)', enabled: true, type: 'ignore', value: 'fyi,for your information,no action needed', action: {} },
+];
+
+// Task template
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  extractionMode: ExtractionMode;
+  defaultPriority: TaskPriority;
+  defaultCategory: TaskCategory;
+  customRules: ExtractionRule[];
+  exportFormat: ExportDestination;
+}
+
+export const DEFAULT_TEMPLATES: TaskTemplate[] = [
+  {
+    id: 'meeting-followup',
+    name: 'Meeting Follow-up',
+    description: 'Extract action items from meeting notes',
+    icon: '📅',
+    extractionMode: 'meeting',
+    defaultPriority: 'medium',
+    defaultCategory: 'action',
+    customRules: [],
+    exportFormat: 'markdown',
+  },
+  {
+    id: 'email-inbox',
+    name: 'Email Inbox Zero',
+    description: 'Process emails and extract action items',
+    icon: '📧',
+    extractionMode: 'email',
+    defaultPriority: 'medium',
+    defaultCategory: 'follow-up',
+    customRules: [],
+    exportFormat: 'todoist',
+  },
+  {
+    id: 'project-planning',
+    name: 'Project Planning',
+    description: 'Extract tasks from project documents',
+    icon: '📋',
+    extractionMode: 'general',
+    defaultPriority: 'medium',
+    defaultCategory: 'action',
+    customRules: [],
+    exportFormat: 'notion',
+  },
+];
+
+// Analytics data
+export interface AnalyticsData {
+  totalExtractions: number;
+  totalTasksExtracted: number;
+  extractionsByMode: Record<ExtractionMode, number>;
+  extractionsByCategory: Record<TaskCategory, number>;
+  extractionsByPriority: Record<TaskPriority, number>;
+  exportsByDestination: Record<ExportDestination, number>;
+  averageTasksPerExtraction: number;
+  mostActiveDay: string;
+  dailyStats: DailyStats[];
+}
+
+export interface DailyStats {
+  date: string;
+  extractions: number;
+  tasks: number;
+}
+
+export const EMPTY_ANALYTICS: AnalyticsData = {
+  totalExtractions: 0,
+  totalTasksExtracted: 0,
+  extractionsByMode: { general: 0, email: 0, meeting: 0 },
+  extractionsByCategory: { action: 0, 'follow-up': 0, decision: 0, deadline: 0, question: 0, idea: 0, other: 0 },
+  extractionsByPriority: { high: 0, medium: 0, low: 0 },
+  exportsByDestination: { clipboard: 0, notion: 0, todoist: 0, clickup: 0, markdown: 0, csv: 0, json: 0, asana: 0, linear: 0 },
+  averageTasksPerExtraction: 0,
+  mostActiveDay: '',
+  dailyStats: [],
+};
 
 // Message types for communication
 export interface ExtractTasksMessage {

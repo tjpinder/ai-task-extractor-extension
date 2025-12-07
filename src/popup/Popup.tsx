@@ -10,7 +10,6 @@ import type {
 } from '../types';
 import {
   PRIORITY_COLORS,
-  PRIORITY_LABELS,
   CATEGORY_ICONS,
   CATEGORY_LABELS,
   EXTRACTION_MODE_LABELS,
@@ -26,7 +25,10 @@ import {
   generateId,
   saveExtraction,
   addToHistory,
+  trackExtraction,
+  trackExport,
 } from '../lib/storage';
+import { DEFAULT_TEMPLATES, type TaskTemplate } from '../types';
 import { extractTasks } from '../lib/ai';
 import {
   formatAsPlainText,
@@ -61,9 +63,10 @@ const Popup: React.FC = () => {
   const [editingField, setEditingField] = useState<'title' | 'description' | null>(null);
   const [extractMode, setExtractMode] = useState<'page' | 'selection'>('page');
   const [selectedText, setSelectedText] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
+  const [categoryFilter, _setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [extractionMode, setExtractionMode] = useState<ExtractionMode>('general');
+  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -164,7 +167,10 @@ const Popup: React.FC = () => {
         url = response.url;
       }
 
-      const extractedTasks = await extractTasks(content, title, settings, extractionMode);
+      // Use template settings if selected
+      const mode = selectedTemplate?.extractionMode || extractionMode;
+      const customRules = selectedTemplate?.customRules;
+      const extractedTasks = await extractTasks(content, title, settings, mode, customRules);
 
       if (extractedTasks.length === 0) {
         setError('No tasks found. Try a different page or selection with action items or meeting notes.');
@@ -180,6 +186,8 @@ const Popup: React.FC = () => {
       setTasks(extractedTasks);
       setPageInfo({ title, url });
 
+      // Track analytics
+      await trackExtraction(mode, extractedTasks);
       await incrementUsage();
       const newUsage = await canExtract();
       setUsage(newUsage);
@@ -232,13 +240,6 @@ const Popup: React.FC = () => {
     setPreviousTasks([...tasks]);
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, priority } : t))
-    );
-  }
-
-  function handleChangeTaskCategory(taskId: string, category: TaskCategory) {
-    setPreviousTasks([...tasks]);
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, category } : t))
     );
   }
 
@@ -309,10 +310,12 @@ const Popup: React.FC = () => {
       switch (destination) {
         case 'clipboard':
           await copyToClipboard(formatAsPlainText(tasks));
+          await trackExport('clipboard');
           setExportSuccess('Copied to clipboard!');
           break;
         case 'markdown':
           await copyToClipboard(formatAsMarkdown(tasks, pageInfo.title));
+          await trackExport('markdown');
           setExportSuccess('Markdown copied to clipboard!');
           break;
         case 'csv':
@@ -326,6 +329,7 @@ const Popup: React.FC = () => {
             `tasks-${new Date().toISOString().split('T')[0]}.csv`,
             'text/csv'
           );
+          await trackExport('csv');
           setExportSuccess('CSV downloaded!');
           break;
         case 'json':
@@ -339,6 +343,7 @@ const Popup: React.FC = () => {
             `tasks-${new Date().toISOString().split('T')[0]}.json`,
             'application/json'
           );
+          await trackExport('json');
           setExportSuccess('JSON downloaded!');
           break;
         case 'notion':
@@ -348,6 +353,7 @@ const Popup: React.FC = () => {
             return;
           }
           await exportToNotion(tasks, settings, pageInfo.title);
+          await trackExport('notion');
           setExportSuccess(`Exported ${selectedTasks.length} tasks to Notion!`);
           break;
         case 'todoist':
@@ -357,6 +363,7 @@ const Popup: React.FC = () => {
             return;
           }
           await exportToTodoist(tasks, settings);
+          await trackExport('todoist');
           setExportSuccess(`Exported ${selectedTasks.length} tasks to Todoist!`);
           break;
         case 'clickup':
@@ -366,6 +373,7 @@ const Popup: React.FC = () => {
             return;
           }
           await exportToClickUp(tasks, settings);
+          await trackExport('clickup');
           setExportSuccess(`Exported ${selectedTasks.length} tasks to ClickUp!`);
           break;
         case 'asana':
@@ -375,6 +383,7 @@ const Popup: React.FC = () => {
             return;
           }
           await exportToAsana(tasks, settings);
+          await trackExport('asana');
           setExportSuccess(`Exported ${selectedTasks.length} tasks to Asana!`);
           break;
         case 'linear':
@@ -384,6 +393,7 @@ const Popup: React.FC = () => {
             return;
           }
           await exportToLinear(tasks, settings);
+          await trackExport('linear');
           setExportSuccess(`Exported ${selectedTasks.length} tasks to Linear!`);
           break;
       }
@@ -486,6 +496,52 @@ const Popup: React.FC = () => {
             AI will analyze the {extractMode === 'selection' ? 'selected text' : 'page content'} and identify actionable tasks, deadlines, and follow-ups.
           </p>
 
+          {/* Template selector (Pro only) */}
+          {settings?.isPro && (
+            <div className="mb-4">
+              <label className={`block text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                Quick Template:
+              </label>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <button
+                  onClick={() => setSelectedTemplate(null)}
+                  className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                    !selectedTemplate
+                      ? isDark
+                        ? 'border-primary-500 bg-primary-900/30 text-primary-400'
+                        : 'border-primary-500 bg-primary-50 text-primary-700'
+                      : isDark
+                      ? 'border-gray-600 bg-gray-800 text-gray-300 hover:border-gray-500'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  Custom
+                </button>
+                {[...DEFAULT_TEMPLATES, ...(settings.customTemplates || [])].map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => {
+                      setSelectedTemplate(template);
+                      setExtractionMode(template.extractionMode);
+                    }}
+                    className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                      selectedTemplate?.id === template.id
+                        ? isDark
+                          ? 'border-primary-500 bg-primary-900/30 text-primary-400'
+                          : 'border-primary-500 bg-primary-50 text-primary-700'
+                        : isDark
+                        ? 'border-gray-600 bg-gray-800 text-gray-300 hover:border-gray-500'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                    title={template.description}
+                  >
+                    {template.icon} {template.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Extraction mode selector */}
           <div className="mb-4">
             <label className={`block text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
@@ -497,7 +553,12 @@ const Popup: React.FC = () => {
                 return (
                   <button
                     key={mode}
-                    onClick={() => !isLocked && setExtractionMode(mode)}
+                    onClick={() => {
+                      if (!isLocked) {
+                        setExtractionMode(mode);
+                        setSelectedTemplate(null); // Clear template when mode changes
+                      }
+                    }}
                     disabled={isLocked}
                     className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                       extractionMode === mode
@@ -524,7 +585,7 @@ const Popup: React.FC = () => {
               })}
             </div>
             <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              {EXTRACTION_MODE_DESCRIPTIONS[extractionMode]}
+              {selectedTemplate?.description || EXTRACTION_MODE_DESCRIPTIONS[extractionMode]}
             </p>
           </div>
 

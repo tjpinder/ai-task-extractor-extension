@@ -1,4 +1,4 @@
-import type { ExtractionMode } from '../types';
+import type { ExtractionMode, ExtractionRule } from '../types';
 
 const BASE_JSON_FORMAT = `{
   "tasks": [
@@ -213,19 +213,66 @@ If no tasks found, return: {"tasks": []}
 Return only valid JSON.`;
 }
 
+function buildCustomRulesSection(rules: ExtractionRule[]): string {
+  const enabledRules = rules.filter((r) => r.enabled);
+  if (enabledRules.length === 0) return '';
+
+  let section = '\n\nCUSTOM EXTRACTION RULES (apply these strictly):\n';
+
+  const keywordRules = enabledRules.filter((r) => r.type === 'keyword');
+  const ignoreRules = enabledRules.filter((r) => r.type === 'ignore');
+
+  if (keywordRules.length > 0) {
+    section += '\nPriority Keywords:\n';
+    for (const rule of keywordRules) {
+      const keywords = rule.value.split(',').map((k) => k.trim()).join(', ');
+      const actions: string[] = [];
+      if (rule.action.priority) actions.push(`mark as ${rule.action.priority} priority`);
+      if (rule.action.category) actions.push(`categorize as ${rule.action.category}`);
+      section += `- If content contains [${keywords}]: ${actions.join(' and ')}\n`;
+    }
+  }
+
+  if (ignoreRules.length > 0) {
+    section += '\nIgnore Patterns (do NOT extract as tasks):\n';
+    for (const rule of ignoreRules) {
+      const keywords = rule.value.split(',').map((k) => k.trim()).join(', ');
+      section += `- Skip items containing: ${keywords}\n`;
+    }
+  }
+
+  return section;
+}
+
 export function buildExtractionPrompt(
   content: string,
   title: string,
-  mode: ExtractionMode = 'general'
+  mode: ExtractionMode = 'general',
+  customRules: ExtractionRule[] = []
 ): string {
+  let basePrompt: string;
   switch (mode) {
     case 'email':
-      return buildEmailPrompt(content, title);
+      basePrompt = buildEmailPrompt(content, title);
+      break;
     case 'meeting':
-      return buildMeetingPrompt(content, title);
+      basePrompt = buildMeetingPrompt(content, title);
+      break;
     default:
-      return buildGeneralPrompt(content, title);
+      basePrompt = buildGeneralPrompt(content, title);
   }
+
+  // Insert custom rules before the JSON format section
+  if (customRules.length > 0) {
+    const rulesSection = buildCustomRulesSection(customRules);
+    // Insert before "Respond in this" or "Return only"
+    const insertPoint = basePrompt.lastIndexOf('Respond in');
+    if (insertPoint > 0) {
+      basePrompt = basePrompt.slice(0, insertPoint) + rulesSection + '\n\n' + basePrompt.slice(insertPoint);
+    }
+  }
+
+  return basePrompt;
 }
 
 export function getExtractionTips(mode: ExtractionMode = 'general'): string[] {
