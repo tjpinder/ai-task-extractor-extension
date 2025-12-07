@@ -223,3 +223,171 @@ export async function exportToClickUp(
 export async function copyToClipboard(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
+
+// Format tasks as CSV
+export function formatAsCSV(tasks: ExtractedTask[], sourceTitle: string): string {
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  // CSV header
+  const headers = ['Title', 'Description', 'Priority', 'Category', 'Assignee', 'Due Date', 'Confidence', 'Source'];
+
+  // Escape CSV field
+  const escapeCSV = (field: string | undefined): string => {
+    if (!field) return '';
+    if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+      return `"${field.replace(/"/g, '""')}"`;
+    }
+    return field;
+  };
+
+  const rows = selectedTasks.map((task) => [
+    escapeCSV(task.title),
+    escapeCSV(task.description),
+    task.priority,
+    CATEGORY_LABELS[task.category],
+    escapeCSV(task.assignee),
+    task.dueDate || '',
+    task.confidence ? `${Math.round(task.confidence * 100)}%` : '',
+    escapeCSV(sourceTitle),
+  ].join(','));
+
+  return [headers.join(','), ...rows].join('\n');
+}
+
+// Format tasks as JSON
+export function formatAsJSON(tasks: ExtractedTask[], sourceTitle: string): string {
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  const exportData = {
+    source: sourceTitle,
+    exportedAt: new Date().toISOString(),
+    taskCount: selectedTasks.length,
+    tasks: selectedTasks.map((task) => ({
+      title: task.title,
+      description: task.description || null,
+      priority: task.priority,
+      category: task.category,
+      categoryLabel: CATEGORY_LABELS[task.category],
+      assignee: task.assignee || null,
+      dueDate: task.dueDate || null,
+      confidence: task.confidence || null,
+    })),
+  };
+
+  return JSON.stringify(exportData, null, 2);
+}
+
+// Download file helper
+export function downloadFile(content: string, filename: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Export to Asana
+export async function exportToAsana(
+  tasks: ExtractedTask[],
+  settings: Settings
+): Promise<void> {
+  if (!settings.asanaApiKey || !settings.asanaProjectId) {
+    throw new Error('Please configure Asana API key and Project ID in settings');
+  }
+
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  for (const task of selectedTasks) {
+    const body: Record<string, unknown> = {
+      data: {
+        name: task.title,
+        projects: [settings.asanaProjectId],
+        notes: task.description || '',
+      },
+    };
+
+    if (task.dueDate) {
+      (body.data as Record<string, unknown>).due_on = task.dueDate;
+    }
+
+    const response = await fetch('https://app.asana.com/api/1.0/tasks', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.asanaApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Asana API error: ${error}`);
+    }
+  }
+}
+
+// Export to Linear
+export async function exportToLinear(
+  tasks: ExtractedTask[],
+  settings: Settings
+): Promise<void> {
+  if (!settings.linearApiKey || !settings.linearTeamId) {
+    throw new Error('Please configure Linear API key and Team ID in settings');
+  }
+
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  // Linear priority mapping (0 = no priority, 1 = urgent, 2 = high, 3 = normal, 4 = low)
+  const priorityMap: Record<string, number> = {
+    high: 2,
+    medium: 3,
+    low: 4,
+  };
+
+  for (const task of selectedTasks) {
+    const mutation = `
+      mutation CreateIssue($input: IssueCreateInput!) {
+        issueCreate(input: $input) {
+          success
+          issue {
+            id
+            title
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      input: {
+        teamId: settings.linearTeamId,
+        title: task.title,
+        description: task.description || '',
+        priority: priorityMap[task.priority],
+        ...(task.dueDate && { dueDate: task.dueDate }),
+      },
+    };
+
+    const response = await fetch('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': settings.linearApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Linear API error: ${error}`);
+    }
+
+    const result = await response.json();
+    if (result.errors) {
+      throw new Error(`Linear API error: ${result.errors[0].message}`);
+    }
+  }
+}

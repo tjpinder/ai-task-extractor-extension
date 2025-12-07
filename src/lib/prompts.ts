@@ -16,6 +16,7 @@ For each task you identify, determine:
 5. Assignee if mentioned (person's name or role)
 6. Due date if mentioned (in YYYY-MM-DD format)
 7. Context (the surrounding context where this task was found)
+8. Confidence (0.0 to 1.0) - how confident you are this is a real actionable task
 
 Look for:
 - Explicit action items (e.g., "need to", "should", "will", "must", "action item:")
@@ -24,6 +25,13 @@ Look for:
 - Questions that need answers
 - Decisions that need to be made
 - Assignments to specific people
+
+Confidence guidelines:
+- 0.9-1.0: Explicit action item with clear ownership or deadline
+- 0.7-0.89: Strong implication of task, mentioned directly
+- 0.5-0.69: Implicit task, inferred from context
+- 0.3-0.49: Possible task, somewhat ambiguous
+- Below 0.3: Weak signal, might not be a real task
 
 Respond in this exact JSON format:
 {
@@ -35,7 +43,8 @@ Respond in this exact JSON format:
       "category": "action|follow-up|decision|deadline|question|idea|other",
       "assignee": "Person name or null",
       "dueDate": "YYYY-MM-DD or null",
-      "context": "Brief context of where this was found"
+      "context": "Brief context of where this was found",
+      "confidence": 0.85
     }
   ]
 }

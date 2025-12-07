@@ -46,10 +46,15 @@ const DEFAULT_SETTINGS: Settings = {
   todoistProjectId: '',
   clickupApiKey: '',
   clickupListId: '',
+  asanaApiKey: '',
+  asanaProjectId: '',
+  linearApiKey: '',
+  linearTeamId: '',
   licenseKey: '',
   isPro: false,
   theme: 'system',
   autoSelectAll: true,
+  showConfidence: true,
 };
 
 // Settings

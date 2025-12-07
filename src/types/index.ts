@@ -47,7 +47,7 @@ export const CATEGORY_ICONS: Record<TaskCategory, string> = {
 export type AIProvider = 'openai' | 'anthropic';
 
 // Export destination
-export type ExportDestination = 'clipboard' | 'notion' | 'todoist' | 'clickup' | 'markdown';
+export type ExportDestination = 'clipboard' | 'notion' | 'todoist' | 'clickup' | 'markdown' | 'csv' | 'json' | 'asana' | 'linear';
 
 export const EXPORT_LABELS: Record<ExportDestination, string> = {
   clipboard: 'Copy to Clipboard',
@@ -55,6 +55,10 @@ export const EXPORT_LABELS: Record<ExportDestination, string> = {
   todoist: 'Export to Todoist',
   clickup: 'Export to ClickUp',
   markdown: 'Copy as Markdown',
+  csv: 'Download CSV',
+  json: 'Download JSON',
+  asana: 'Export to Asana',
+  linear: 'Export to Linear',
 };
 
 // Extracted task
@@ -68,6 +72,7 @@ export interface ExtractedTask {
   dueDate?: string;
   context?: string;
   selected: boolean;
+  confidence?: number; // 0-1 confidence score from AI
 }
 
 // Extraction result
@@ -103,10 +108,15 @@ export interface Settings {
   todoistProjectId: string;
   clickupApiKey: string;
   clickupListId: string;
+  asanaApiKey: string;
+  asanaProjectId: string;
+  linearApiKey: string;
+  linearTeamId: string;
   licenseKey: string;
   isPro: boolean;
   theme: ThemePreference;
   autoSelectAll: boolean;
+  showConfidence: boolean;
 }
 
 // Tier limits

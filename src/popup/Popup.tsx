@@ -26,10 +26,15 @@ import { extractTasks } from '../lib/ai';
 import {
   formatAsPlainText,
   formatAsMarkdown,
+  formatAsCSV,
+  formatAsJSON,
   exportToNotion,
   exportToTodoist,
   exportToClickUp,
+  exportToAsana,
+  exportToLinear,
   copyToClipboard,
+  downloadFile,
 } from '../lib/export';
 
 type View = 'idle' | 'extracting' | 'results' | 'exporting' | 'error';
@@ -52,6 +57,7 @@ const Popup: React.FC = () => {
   const [extractMode, setExtractMode] = useState<'page' | 'selection'>('page');
   const [selectedText, setSelectedText] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadInitialData();
@@ -251,9 +257,22 @@ const Popup: React.FC = () => {
     );
   }
 
-  const filteredTasks = categoryFilter === 'all'
-    ? tasks
-    : tasks.filter((t) => t.category === categoryFilter);
+  const filteredTasks = tasks.filter((t) => {
+    // Category filter
+    if (categoryFilter !== 'all' && t.category !== categoryFilter) {
+      return false;
+    }
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        t.title.toLowerCase().includes(query) ||
+        t.description?.toLowerCase().includes(query) ||
+        t.assignee?.toLowerCase().includes(query)
+      );
+    }
+    return true;
+  });
 
   function toggleTask(taskId: string) {
     setTasks((prev) =>
@@ -290,6 +309,32 @@ const Popup: React.FC = () => {
           await copyToClipboard(formatAsMarkdown(tasks, pageInfo.title));
           setExportSuccess('Markdown copied to clipboard!');
           break;
+        case 'csv':
+          if (!settings.isPro) {
+            setError('CSV export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          downloadFile(
+            formatAsCSV(tasks, pageInfo.title),
+            `tasks-${new Date().toISOString().split('T')[0]}.csv`,
+            'text/csv'
+          );
+          setExportSuccess('CSV downloaded!');
+          break;
+        case 'json':
+          if (!settings.isPro) {
+            setError('JSON export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          downloadFile(
+            formatAsJSON(tasks, pageInfo.title),
+            `tasks-${new Date().toISOString().split('T')[0]}.json`,
+            'application/json'
+          );
+          setExportSuccess('JSON downloaded!');
+          break;
         case 'notion':
           if (!settings.isPro) {
             setError('Notion export is a Pro feature. Upgrade to unlock.');
@@ -316,6 +361,24 @@ const Popup: React.FC = () => {
           }
           await exportToClickUp(tasks, settings);
           setExportSuccess(`Exported ${selectedTasks.length} tasks to ClickUp!`);
+          break;
+        case 'asana':
+          if (!settings.isPro) {
+            setError('Asana export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          await exportToAsana(tasks, settings);
+          setExportSuccess(`Exported ${selectedTasks.length} tasks to Asana!`);
+          break;
+        case 'linear':
+          if (!settings.isPro) {
+            setError('Linear export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          await exportToLinear(tasks, settings);
+          setExportSuccess(`Exported ${selectedTasks.length} tasks to Linear!`);
           break;
       }
       setView('results');
@@ -552,24 +615,52 @@ const Popup: React.FC = () => {
             </div>
           </div>
 
+          {/* Search input */}
+          {settings?.isPro && (
+            <div className="mb-3">
+              <div className="relative">
+                <svg className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks..."
+                  className={`w-full pl-9 pr-3 py-1.5 text-sm rounded-lg border ${isDark ? 'bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'} focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Quick select by priority/category */}
           <div className={`flex flex-wrap gap-1 mb-3 pb-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <span className={`text-xs mr-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Select:</span>
             <button
               onClick={() => selectByPriority('high')}
-              className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+              className={`text-xs px-2 py-0.5 rounded ${isDark ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
             >
               High
             </button>
             <button
               onClick={() => selectByPriority('medium')}
-              className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+              className={`text-xs px-2 py-0.5 rounded ${isDark ? 'bg-amber-900/30 text-amber-400 hover:bg-amber-900/50' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
             >
               Medium
             </button>
             <button
               onClick={() => selectByPriority('low')}
-              className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+              className={`text-xs px-2 py-0.5 rounded ${isDark ? 'bg-green-900/30 text-green-400 hover:bg-green-900/50' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
             >
               Low
             </button>
@@ -689,12 +780,27 @@ const Popup: React.FC = () => {
                         </p>
                       )
                     )}
-                    <div className={`flex flex-wrap gap-2 mt-2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    <div className={`flex flex-wrap items-center gap-2 mt-2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                       {task.assignee && (
                         <span>👤 {task.assignee}</span>
                       )}
                       {task.dueDate && (
                         <span>📅 {task.dueDate}</span>
+                      )}
+                      {/* Confidence score */}
+                      {settings?.isPro && settings.showConfidence && task.confidence !== undefined && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-xs ${
+                            task.confidence >= 0.8
+                              ? isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'
+                              : task.confidence >= 0.5
+                              ? isDark ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'
+                              : isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                          }`}
+                          title="AI confidence score"
+                        >
+                          {Math.round(task.confidence * 100)}%
+                        </span>
                       )}
                     </div>
                   </div>
@@ -706,7 +812,9 @@ const Popup: React.FC = () => {
 
         <div className={`p-4 border-t ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
           <p className={`text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Export selected tasks:</p>
-          <div className="grid grid-cols-2 gap-2">
+
+          {/* Free export options */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
             <button
               onClick={() => handleExport('clipboard')}
               className="btn-secondary text-sm py-2"
@@ -719,21 +827,65 @@ const Popup: React.FC = () => {
             >
               📝 Markdown
             </button>
+          </div>
+
+          {/* Pro export options */}
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={() => handleExport('csv')}
+              disabled={!settings?.isPro}
+              className="btn-outline text-xs py-1.5 disabled:opacity-50"
+              title={!settings?.isPro ? 'Pro feature' : ''}
+            >
+              CSV {!settings?.isPro && '🔒'}
+            </button>
+            <button
+              onClick={() => handleExport('json')}
+              disabled={!settings?.isPro}
+              className="btn-outline text-xs py-1.5 disabled:opacity-50"
+              title={!settings?.isPro ? 'Pro feature' : ''}
+            >
+              JSON {!settings?.isPro && '🔒'}
+            </button>
             <button
               onClick={() => handleExport('notion')}
               disabled={!settings?.isPro}
-              className="btn-outline text-sm py-2 disabled:opacity-50"
+              className="btn-outline text-xs py-1.5 disabled:opacity-50"
               title={!settings?.isPro ? 'Pro feature' : ''}
             >
-              📓 Notion {!settings?.isPro && '🔒'}
+              Notion {!settings?.isPro && '🔒'}
             </button>
             <button
               onClick={() => handleExport('todoist')}
               disabled={!settings?.isPro}
-              className="btn-outline text-sm py-2 disabled:opacity-50"
+              className="btn-outline text-xs py-1.5 disabled:opacity-50"
               title={!settings?.isPro ? 'Pro feature' : ''}
             >
-              ✅ Todoist {!settings?.isPro && '🔒'}
+              Todoist {!settings?.isPro && '🔒'}
+            </button>
+            <button
+              onClick={() => handleExport('clickup')}
+              disabled={!settings?.isPro}
+              className="btn-outline text-xs py-1.5 disabled:opacity-50"
+              title={!settings?.isPro ? 'Pro feature' : ''}
+            >
+              ClickUp {!settings?.isPro && '🔒'}
+            </button>
+            <button
+              onClick={() => handleExport('asana')}
+              disabled={!settings?.isPro}
+              className="btn-outline text-xs py-1.5 disabled:opacity-50"
+              title={!settings?.isPro ? 'Pro feature' : ''}
+            >
+              Asana {!settings?.isPro && '🔒'}
+            </button>
+            <button
+              onClick={() => handleExport('linear')}
+              disabled={!settings?.isPro}
+              className="btn-outline text-xs py-1.5 disabled:opacity-50 col-span-3"
+              title={!settings?.isPro ? 'Pro feature' : ''}
+            >
+              Linear {!settings?.isPro && '🔒'}
             </button>
           </div>
         </div>

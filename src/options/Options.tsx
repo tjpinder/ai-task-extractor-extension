@@ -205,6 +205,21 @@ const Options: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Theme
+                  </label>
+                  <select
+                    value={settings.theme}
+                    onChange={(e) => updateSettings('theme', e.target.value as Settings['theme'])}
+                    className="input"
+                  >
+                    <option value="system">System Default</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Default Export Format
                   </label>
                   <select
@@ -214,9 +229,13 @@ const Options: React.FC = () => {
                   >
                     <option value="clipboard">Plain Text (Clipboard)</option>
                     <option value="markdown">Markdown</option>
+                    {settings.isPro && <option value="csv">CSV</option>}
+                    {settings.isPro && <option value="json">JSON</option>}
                     {settings.isPro && <option value="notion">Notion</option>}
                     {settings.isPro && <option value="todoist">Todoist</option>}
                     {settings.isPro && <option value="clickup">ClickUp</option>}
+                    {settings.isPro && <option value="asana">Asana</option>}
+                    {settings.isPro && <option value="linear">Linear</option>}
                   </select>
                 </div>
 
@@ -230,6 +249,19 @@ const Options: React.FC = () => {
                   />
                   <label htmlFor="autoSelect" className="text-sm text-gray-700">
                     Automatically select all extracted tasks
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="showConfidence"
+                    checked={settings.showConfidence}
+                    onChange={(e) => updateSettings('showConfidence', e.target.checked)}
+                    className="checkbox"
+                  />
+                  <label htmlFor="showConfidence" className="text-sm text-gray-700">
+                    Show confidence scores on tasks
                   </label>
                 </div>
               </div>
@@ -247,7 +279,7 @@ const Options: React.FC = () => {
                   <div>
                     <h3 className="font-medium text-amber-800">Pro Feature</h3>
                     <p className="text-sm text-amber-700 mt-1">
-                      Export integrations with Notion, Todoist, and ClickUp are available with a Pro license.
+                      Export integrations with Notion, Todoist, ClickUp, Asana, and Linear are available with a Pro license.
                     </p>
                     <button
                       onClick={() => setActiveTab('license')}
@@ -403,6 +435,106 @@ const Options: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Asana */}
+            <div className={`card ${!settings.isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">🎯</span>
+                <h2 className="text-lg font-semibold text-gray-900">Asana</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Personal Access Token
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.asanaApiKey}
+                    onChange={(e) => updateSettings('asanaApiKey', e.target.value)}
+                    placeholder="Your Asana access token"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Create a token in{' '}
+                    <a
+                      href="https://app.asana.com/0/my-apps"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-500 hover:underline"
+                    >
+                      Asana Developer Console
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.asanaProjectId}
+                    onChange={(e) => updateSettings('asanaProjectId', e.target.value)}
+                    placeholder="The project where tasks will be added"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Find the project ID in the URL: app.asana.com/0/<strong>PROJECT_ID</strong>/...
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Linear */}
+            <div className={`card ${!settings.isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">⚡</span>
+                <h2 className="text-lg font-semibold text-gray-900">Linear</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.linearApiKey}
+                    onChange={(e) => updateSettings('linearApiKey', e.target.value)}
+                    placeholder="lin_api_..."
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Create an API key in{' '}
+                    <a
+                      href="https://linear.app/settings/api"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-500 hover:underline"
+                    >
+                      Linear Settings → API
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Team ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.linearTeamId}
+                    onChange={(e) => updateSettings('linearTeamId', e.target.value)}
+                    placeholder="The team where issues will be created"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Find your team ID in Linear → Settings → Team → General
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -481,12 +613,14 @@ const Options: React.FC = () => {
                 </div>
 
                 <div className="p-4 bg-primary-50 border border-primary-200 rounded-lg">
-                  <h3 className="font-medium text-primary-900 mb-2">Pro Plan - $14.99</h3>
+                  <h3 className="font-medium text-primary-900 mb-2">Pro Plan - $19 (One-time)</h3>
                   <ul className="text-sm text-primary-700 space-y-1">
                     <li>• Unlimited extractions</li>
-                    <li>• Export to Notion</li>
-                    <li>• Export to Todoist</li>
-                    <li>• Export to ClickUp</li>
+                    <li>• Export to Notion, Todoist, ClickUp</li>
+                    <li>• Export to Asana & Linear</li>
+                    <li>• CSV & JSON export</li>
+                    <li>• Search & filter tasks</li>
+                    <li>• Confidence scores</li>
                     <li>• Priority support</li>
                   </ul>
                   <a

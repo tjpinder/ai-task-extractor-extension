@@ -1,6 +1,6 @@
 # Startvest Extensions - Bundles, Analytics & A/B Testing Roadmap
 
-> **Status:** Planning - To be implemented after core extension features
+> **Status:** In Progress - Phase 1 partially complete
 > **Created:** 2025-12-06
 > **Priority:** Post-MVP
 
@@ -307,9 +307,9 @@ track('cross_promo_dismissed', { bundle, variant, location });
 ## 6. Implementation Phases
 
 ### Phase 1: Basic Analytics (Week 1-2)
-- [ ] Event tracking in extensions
-- [ ] Backend event ingestion API
-- [ ] Basic dashboard with key metrics
+- [x] Event tracking in extensions (analytics.ts, bundles.ts libraries created)
+- [x] Backend event ingestion API (POST /analytics/events, GET /analytics/extensions/*)
+- [x] Basic dashboard with key metrics (ExtensionAnalyticsDashboard.jsx)
 - [ ] Daily email summary
 
 ### Phase 2: A/B Testing Infrastructure (Week 3-4)
@@ -319,8 +319,8 @@ track('cross_promo_dismissed', { bundle, variant, location });
 - [ ] Dashboard integration
 
 ### Phase 3: Bundle System (Week 5-6)
-- [ ] Bundle configuration in backend
-- [ ] Cross-promo components in extensions
+- [x] Bundle configuration in backend (bundles.controller.ts with 4 bundles)
+- [x] Cross-promo components in extensions (bundles.ts library)
 - [ ] Bundle checkout flow
 - [ ] Bundle-specific Stripe products
 

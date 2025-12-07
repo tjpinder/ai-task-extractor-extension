@@ -119,6 +119,7 @@ export async function extractTasks(
       assignee?: string;
       dueDate?: string;
       context?: string;
+      confidence?: number;
     }> };
 
     return parsed.tasks.map((task) => ({
@@ -130,6 +131,7 @@ export async function extractTasks(
       assignee: task.assignee || undefined,
       dueDate: task.dueDate || undefined,
       context: task.context,
+      confidence: typeof task.confidence === 'number' ? task.confidence : 0.7,
       selected: true,
     }));
   } catch {
