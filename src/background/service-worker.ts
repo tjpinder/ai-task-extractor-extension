@@ -106,7 +106,40 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Handle keyboard shortcuts
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'extract-tasks') {
-    chrome.action.openPopup();
+    chrome.storage.local.set({ ate_extract_mode: 'page' }, () => {
+      chrome.action.openPopup();
+    });
+  }
+
+  if (command === 'extract-selection') {
+    // Get selected text from the active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (tab?.id) {
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => window.getSelection()?.toString() || '',
+        }).then((results) => {
+          const selectedText = results[0]?.result;
+          if (selectedText) {
+            chrome.storage.local.set({
+              ate_extract_mode: 'selection',
+              ate_selected_text: selectedText,
+            }, () => {
+              chrome.action.openPopup();
+            });
+          } else {
+            // No selection, fall back to full page
+            chrome.storage.local.set({ ate_extract_mode: 'page' }, () => {
+              chrome.action.openPopup();
+            });
+          }
+        }).catch(() => {
+          // Script injection failed, just open popup
+          chrome.action.openPopup();
+        });
+      }
+    });
   }
 });
 

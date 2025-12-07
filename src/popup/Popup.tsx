@@ -40,6 +40,9 @@ import {
   exportToClickUp,
   exportToAsana,
   exportToLinear,
+  exportToTrello,
+  exportToJira,
+  sendToSlack,
   copyToClipboard,
   downloadFile,
 } from '../lib/export';
@@ -396,6 +399,40 @@ const Popup: React.FC = () => {
           await trackExport('linear');
           setExportSuccess(`Exported ${selectedTasks.length} tasks to Linear!`);
           break;
+        case 'trello':
+          if (!settings.isPro) {
+            setError('Trello export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          await exportToTrello(tasks, settings);
+          await trackExport('trello');
+          setExportSuccess(`Exported ${selectedTasks.length} tasks to Trello!`);
+          break;
+        case 'jira':
+          if (!settings.isPro) {
+            setError('Jira export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          await exportToJira(tasks, settings);
+          await trackExport('jira');
+          setExportSuccess(`Exported ${selectedTasks.length} tasks to Jira!`);
+          break;
+        case 'slack':
+          if (!settings.isPro) {
+            setError('Slack export is a Pro feature. Upgrade to unlock.');
+            setView('error');
+            return;
+          }
+          await sendToSlack(tasks, settings, pageInfo.title);
+          await trackExport('slack');
+          setExportSuccess(`Sent ${selectedTasks.length} tasks to Slack!`);
+          break;
+        case 'google-tasks':
+          setError('Google Tasks integration requires OAuth setup. Coming soon!');
+          setView('error');
+          return;
       }
       setView('results');
       setTimeout(() => setExportSuccess(null), 3000);
@@ -724,6 +761,69 @@ const Popup: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Calendar Preview - shows tasks with due dates */}
+          {settings?.isPro && (() => {
+            const tasksWithDueDates = tasks.filter((t) => t.dueDate);
+            if (tasksWithDueDates.length === 0) return null;
+
+            // Group tasks by due date
+            const tasksByDate = tasksWithDueDates.reduce((acc, task) => {
+              const date = task.dueDate!;
+              if (!acc[date]) acc[date] = [];
+              acc[date].push(task);
+              return acc;
+            }, {} as Record<string, ExtractedTask[]>);
+
+            const sortedDates = Object.keys(tasksByDate).sort();
+            const today = new Date().toISOString().split('T')[0];
+
+            return (
+              <details className={`mb-3 p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                <summary className={`cursor-pointer text-sm font-medium flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Calendar Preview ({tasksWithDueDates.length} with due dates)
+                </summary>
+                <div className="mt-3 space-y-2">
+                  {sortedDates.slice(0, 5).map((date) => {
+                    const isToday = date === today;
+                    const isPast = date < today;
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+                    return (
+                      <div key={date} className={`p-2 rounded ${
+                        isPast ? (isDark ? 'bg-red-900/20' : 'bg-red-50') :
+                        isToday ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') :
+                        (isDark ? 'bg-gray-700/50' : 'bg-white')
+                      }`}>
+                        <div className={`text-xs font-medium mb-1 ${
+                          isPast ? 'text-red-500' :
+                          isToday ? 'text-blue-500' :
+                          (isDark ? 'text-gray-400' : 'text-gray-600')
+                        }`}>
+                          {isToday ? 'Today' : formattedDate}
+                          {isPast && ' (Overdue)'}
+                        </div>
+                        {tasksByDate[date].map((task) => (
+                          <div key={task.id} className={`text-xs truncate ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {CATEGORY_ICONS[task.category]} {task.title}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                  {sortedDates.length > 5 && (
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      +{sortedDates.length - 5} more dates...
+                    </p>
+                  )}
+                </div>
+              </details>
+            );
+          })()}
 
           {/* Search input */}
           {settings?.isPro && (

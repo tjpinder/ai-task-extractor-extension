@@ -246,6 +246,9 @@ const Options: React.FC = () => {
                     {settings.isPro && <option value="clickup">ClickUp</option>}
                     {settings.isPro && <option value="asana">Asana</option>}
                     {settings.isPro && <option value="linear">Linear</option>}
+                    {settings.isPro && <option value="trello">Trello</option>}
+                    {settings.isPro && <option value="jira">Jira</option>}
+                    {settings.isPro && <option value="slack">Slack</option>}
                   </select>
                 </div>
 
@@ -320,6 +323,39 @@ const Options: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Keyboard Shortcuts</h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">Extract from Page</p>
+                    <p className="text-sm text-gray-500">Open popup and extract tasks from full page</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 text-sm font-mono bg-white border border-gray-300 rounded shadow-sm">
+                    Alt+Shift+E
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">Extract from Selection</p>
+                    <p className="text-sm text-gray-500">Extract tasks from highlighted text</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 text-sm font-mono bg-white border border-gray-300 rounded shadow-sm">
+                    Alt+Shift+S
+                  </kbd>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  To customize shortcuts, visit{' '}
+                  <button
+                    onClick={() => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}
+                    className="text-primary-500 hover:underline"
+                  >
+                    chrome://extensions/shortcuts
+                  </button>
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -333,7 +369,7 @@ const Options: React.FC = () => {
                   <div>
                     <h3 className="font-medium text-amber-800">Pro Feature</h3>
                     <p className="text-sm text-amber-700 mt-1">
-                      Export integrations with Notion, Todoist, ClickUp, Asana, and Linear are available with a Pro license.
+                      Export integrations with Notion, Todoist, ClickUp, Asana, Linear, Trello, Jira, and Slack are available with a Pro license.
                     </p>
                     <button
                       onClick={() => setActiveTab('license')}
@@ -585,6 +621,166 @@ const Options: React.FC = () => {
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Find your team ID in Linear → Settings → Team → General
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trello */}
+            <div className={`card ${!settings.isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">📝</span>
+                <h2 className="text-lg font-semibold text-gray-900">Trello</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.trelloApiKey}
+                    onChange={(e) => updateSettings('trelloApiKey', e.target.value)}
+                    placeholder="Your Trello API key"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Get your API key from{' '}
+                    <a
+                      href="https://trello.com/power-ups/admin"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-500 hover:underline"
+                    >
+                      Trello Power-Up Admin
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Token
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.trelloToken}
+                    onChange={(e) => updateSettings('trelloToken', e.target.value)}
+                    placeholder="Your Trello token"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    List ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.trelloListId}
+                    onChange={(e) => updateSettings('trelloListId', e.target.value)}
+                    placeholder="The list where cards will be created"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Find the list ID in the URL when viewing a list
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Jira */}
+            <div className={`card ${!settings.isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">🔷</span>
+                <h2 className="text-lg font-semibold text-gray-900">Jira</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Domain
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.jiraDomain}
+                    onChange={(e) => updateSettings('jiraDomain', e.target.value)}
+                    placeholder="your-company.atlassian.net"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    API Token
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.jiraApiToken}
+                    onChange={(e) => updateSettings('jiraApiToken', e.target.value)}
+                    placeholder="Your Jira API token"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Create a token at{' '}
+                    <a
+                      href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-500 hover:underline"
+                    >
+                      Atlassian API Tokens
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Key
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.jiraProjectKey}
+                    onChange={(e) => updateSettings('jiraProjectKey', e.target.value)}
+                    placeholder="e.g., PROJ"
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    The project key (e.g., PROJ from PROJ-123)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Slack */}
+            <div className={`card ${!settings.isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">💬</span>
+                <h2 className="text-lg font-semibold text-gray-900">Slack</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Webhook URL
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.slackWebhookUrl}
+                    onChange={(e) => updateSettings('slackWebhookUrl', e.target.value)}
+                    placeholder="https://hooks.slack.com/services/..."
+                    className="input"
+                    disabled={!settings.isPro}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Create an incoming webhook at{' '}
+                    <a
+                      href="https://api.slack.com/apps"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-500 hover:underline"
+                    >
+                      Slack Apps
+                    </a>
                   </p>
                 </div>
               </div>

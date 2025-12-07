@@ -102,7 +102,7 @@ export interface SubTask {
 }
 
 // Export destination
-export type ExportDestination = 'clipboard' | 'notion' | 'todoist' | 'clickup' | 'markdown' | 'csv' | 'json' | 'asana' | 'linear';
+export type ExportDestination = 'clipboard' | 'notion' | 'todoist' | 'clickup' | 'markdown' | 'csv' | 'json' | 'asana' | 'linear' | 'trello' | 'google-tasks' | 'jira' | 'slack';
 
 export const EXPORT_LABELS: Record<ExportDestination, string> = {
   clipboard: 'Copy to Clipboard',
@@ -114,6 +114,10 @@ export const EXPORT_LABELS: Record<ExportDestination, string> = {
   json: 'Download JSON',
   asana: 'Export to Asana',
   linear: 'Export to Linear',
+  trello: 'Export to Trello',
+  'google-tasks': 'Export to Google Tasks',
+  jira: 'Export to Jira',
+  slack: 'Send to Slack',
 };
 
 // Extracted task
@@ -173,6 +177,16 @@ export interface Settings {
   asanaProjectId: string;
   linearApiKey: string;
   linearTeamId: string;
+  trelloApiKey: string;
+  trelloToken: string;
+  trelloBoardId: string;
+  trelloListId: string;
+  googleTasksEnabled: boolean;
+  jiraApiToken: string;
+  jiraDomain: string;
+  jiraProjectKey: string;
+  slackWebhookUrl: string;
+  slackChannel: string;
   licenseKey: string;
   isPro: boolean;
   theme: ThemePreference;
@@ -303,7 +317,7 @@ export const EMPTY_ANALYTICS: AnalyticsData = {
   extractionsByMode: { general: 0, email: 0, meeting: 0 },
   extractionsByCategory: { action: 0, 'follow-up': 0, decision: 0, deadline: 0, question: 0, idea: 0, other: 0 },
   extractionsByPriority: { high: 0, medium: 0, low: 0 },
-  exportsByDestination: { clipboard: 0, notion: 0, todoist: 0, clickup: 0, markdown: 0, csv: 0, json: 0, asana: 0, linear: 0 },
+  exportsByDestination: { clipboard: 0, notion: 0, todoist: 0, clickup: 0, markdown: 0, csv: 0, json: 0, asana: 0, linear: 0, trello: 0, 'google-tasks': 0, jira: 0, slack: 0 },
   averageTasksPerExtraction: 0,
   mostActiveDay: '',
   dailyStats: [],

@@ -6,8 +6,25 @@
   "permissions": [
     "activeTab",
     "storage",
-    "contextMenus"
+    "contextMenus",
+    "scripting"
   ],
+  "commands": {
+    "extract-tasks": {
+      "suggested_key": {
+        "default": "Alt+Shift+E",
+        "mac": "Alt+Shift+E"
+      },
+      "description": "Extract tasks from current page"
+    },
+    "extract-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Extract tasks from selected text"
+    }
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

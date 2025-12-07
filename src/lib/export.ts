@@ -391,3 +391,183 @@ export async function exportToLinear(
     }
   }
 }
+
+// Export to Trello
+export async function exportToTrello(
+  tasks: ExtractedTask[],
+  settings: Settings
+): Promise<void> {
+  if (!settings.trelloApiKey || !settings.trelloToken || !settings.trelloListId) {
+    throw new Error('Please configure Trello API key, token, and List ID in settings');
+  }
+
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  // Trello label colors based on priority
+  const priorityLabels: Record<string, string> = {
+    high: 'red',
+    medium: 'yellow',
+    low: 'green',
+  };
+
+  for (const task of selectedTasks) {
+    const params = new URLSearchParams({
+      key: settings.trelloApiKey,
+      token: settings.trelloToken,
+      idList: settings.trelloListId,
+      name: task.title,
+      desc: task.description || '',
+    });
+
+    if (task.dueDate) {
+      params.append('due', task.dueDate);
+    }
+
+    const response = await fetch(`https://api.trello.com/1/cards?${params.toString()}`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Trello API error: ${error}`);
+    }
+
+    // Add label for priority
+    const card = await response.json();
+    if (card.id) {
+      await fetch(`https://api.trello.com/1/cards/${card.id}/labels?key=${settings.trelloApiKey}&token=${settings.trelloToken}&color=${priorityLabels[task.priority]}`, {
+        method: 'POST',
+      });
+    }
+  }
+}
+
+// Export to Jira
+export async function exportToJira(
+  tasks: ExtractedTask[],
+  settings: Settings
+): Promise<void> {
+  if (!settings.jiraApiToken || !settings.jiraDomain || !settings.jiraProjectKey) {
+    throw new Error('Please configure Jira API token, domain, and project key in settings');
+  }
+
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  // Jira priority mapping (1 = Highest, 2 = High, 3 = Medium, 4 = Low, 5 = Lowest)
+  const priorityMap: Record<string, string> = {
+    high: '2',
+    medium: '3',
+    low: '4',
+  };
+
+  for (const task of selectedTasks) {
+    const body = {
+      fields: {
+        project: { key: settings.jiraProjectKey },
+        summary: task.title,
+        description: {
+          type: 'doc',
+          version: 1,
+          content: task.description ? [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: task.description }],
+            },
+          ] : [],
+        },
+        issuetype: { name: 'Task' },
+        priority: { id: priorityMap[task.priority] },
+        ...(task.dueDate && { duedate: task.dueDate }),
+      },
+    };
+
+    const response = await fetch(`https://${settings.jiraDomain}/rest/api/3/issue`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${btoa(`email:${settings.jiraApiToken}`)}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Jira API error: ${error}`);
+    }
+  }
+}
+
+// Send to Slack
+export async function sendToSlack(
+  tasks: ExtractedTask[],
+  settings: Settings,
+  sourceTitle: string
+): Promise<void> {
+  if (!settings.slackWebhookUrl) {
+    throw new Error('Please configure Slack webhook URL in settings');
+  }
+
+  const selectedTasks = tasks.filter((t) => t.selected);
+
+  // Build Slack message blocks
+  const blocks = [
+    {
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: `📋 Tasks from "${sourceTitle}"`,
+        emoji: true,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${selectedTasks.length} task(s) extracted*`,
+      },
+    },
+    { type: 'divider' },
+  ];
+
+  // Group by priority
+  const priorityEmoji: Record<string, string> = {
+    high: '🔴',
+    medium: '🟡',
+    low: '🟢',
+  };
+
+  for (const task of selectedTasks) {
+    let taskText = `${priorityEmoji[task.priority]} *${task.title}*`;
+
+    const meta: string[] = [];
+    if (task.assignee) meta.push(`👤 ${task.assignee}`);
+    if (task.dueDate) meta.push(`📅 ${task.dueDate}`);
+    if (meta.length > 0) {
+      taskText += `\n${meta.join(' | ')}`;
+    }
+
+    if (task.description) {
+      taskText += `\n_${task.description}_`;
+    }
+
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: taskText,
+      },
+    });
+  }
+
+  const response = await fetch(settings.slackWebhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ blocks }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to send to Slack. Please check your webhook URL.');
+  }
+}
