@@ -6,12 +6,17 @@ import type {
   ExportDestination,
   TaskCategory,
   TaskPriority,
+  ExtractionMode,
 } from '../types';
 import {
   PRIORITY_COLORS,
   PRIORITY_LABELS,
   CATEGORY_ICONS,
   CATEGORY_LABELS,
+  EXTRACTION_MODE_LABELS,
+  EXTRACTION_MODE_DESCRIPTIONS,
+  TIME_ESTIMATE_LABELS,
+  RECURRING_LABELS,
 } from '../types';
 import {
   getSettings,
@@ -58,6 +63,7 @@ const Popup: React.FC = () => {
   const [selectedText, setSelectedText] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [extractionMode, setExtractionMode] = useState<ExtractionMode>('general');
 
   useEffect(() => {
     loadInitialData();
@@ -158,7 +164,7 @@ const Popup: React.FC = () => {
         url = response.url;
       }
 
-      const extractedTasks = await extractTasks(content, title, settings);
+      const extractedTasks = await extractTasks(content, title, settings, extractionMode);
 
       if (extractedTasks.length === 0) {
         setError('No tasks found. Try a different page or selection with action items or meeting notes.');
@@ -476,9 +482,52 @@ const Popup: React.FC = () => {
           <h2 className={`text-lg font-semibold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
             {extractMode === 'selection' ? 'Extract Tasks from Selection' : 'Extract Tasks from This Page'}
           </h2>
-          <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             AI will analyze the {extractMode === 'selection' ? 'selected text' : 'page content'} and identify actionable tasks, deadlines, and follow-ups.
           </p>
+
+          {/* Extraction mode selector */}
+          <div className="mb-4">
+            <label className={`block text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+              Extraction Mode:
+            </label>
+            <div className="flex gap-2 justify-center">
+              {(['general', 'email', 'meeting'] as ExtractionMode[]).map((mode) => {
+                const isLocked = mode !== 'general' && !settings?.isPro;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => !isLocked && setExtractionMode(mode)}
+                    disabled={isLocked}
+                    className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                      extractionMode === mode
+                        ? isDark
+                          ? 'border-primary-500 bg-primary-900/30 text-primary-400'
+                          : 'border-primary-500 bg-primary-50 text-primary-700'
+                        : isLocked
+                        ? isDark
+                          ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed'
+                          : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                        : isDark
+                        ? 'border-gray-600 bg-gray-800 text-gray-300 hover:border-gray-500'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                    title={isLocked ? 'Pro feature' : EXTRACTION_MODE_DESCRIPTIONS[mode]}
+                  >
+                    {mode === 'email' && '📧 '}
+                    {mode === 'meeting' && '📅 '}
+                    {mode === 'general' && '📄 '}
+                    {EXTRACTION_MODE_LABELS[mode]}
+                    {isLocked && ' 🔒'}
+                  </button>
+                );
+              })}
+            </div>
+            <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              {EXTRACTION_MODE_DESCRIPTIONS[extractionMode]}
+            </p>
+          </div>
+
           <button
             onClick={handleExtract}
             className="btn-primary w-full"
@@ -787,6 +836,26 @@ const Popup: React.FC = () => {
                       {task.dueDate && (
                         <span>📅 {task.dueDate}</span>
                       )}
+                      {/* Time estimate */}
+                      {settings?.isPro && settings?.showTimeEstimates && task.timeEstimate && (
+                        <span className={`px-1.5 py-0.5 rounded ${isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700'}`} title="Estimated time">
+                          ⏱️ {TIME_ESTIMATE_LABELS[task.timeEstimate]}
+                        </span>
+                      )}
+                      {/* Recurring indicator */}
+                      {settings?.isPro && settings?.showRecurring && task.recurring && (
+                        <span className={`px-1.5 py-0.5 rounded ${isDark ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-700'}`} title={task.recurring.description}>
+                          🔄 {RECURRING_LABELS[task.recurring.frequency]}
+                        </span>
+                      )}
+                      {/* Sender (email mode) */}
+                      {task.sender && (
+                        <span>✉️ {task.sender}</span>
+                      )}
+                      {/* Attendees count (meeting mode) */}
+                      {task.attendees && task.attendees.length > 0 && (
+                        <span title={task.attendees.join(', ')}>👥 {task.attendees.length}</span>
+                      )}
                       {/* Confidence score */}
                       {settings?.isPro && settings.showConfidence && task.confidence !== undefined && (
                         <span
@@ -803,6 +872,27 @@ const Popup: React.FC = () => {
                         </span>
                       )}
                     </div>
+                    {/* Sub-tasks */}
+                    {settings?.isPro && task.subTasks && task.subTasks.length > 0 && (
+                      <div className={`mt-2 pl-4 border-l-2 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <p className={`text-xs mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Sub-tasks ({task.subTasks.length}):
+                        </p>
+                        <ul className="space-y-0.5">
+                          {task.subTasks.slice(0, 3).map((st) => (
+                            <li key={st.id} className={`text-xs flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></span>
+                              {st.title}
+                            </li>
+                          ))}
+                          {task.subTasks.length > 3 && (
+                            <li className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              +{task.subTasks.length - 3} more...
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

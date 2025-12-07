@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   openaiApiKey: '',
   anthropicApiKey: '',
   defaultExport: 'clipboard',
+  defaultExtractionMode: 'general',
   notionApiKey: '',
   notionDatabaseId: '',
   todoistApiKey: '',
@@ -55,6 +56,8 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   autoSelectAll: true,
   showConfidence: true,
+  showTimeEstimates: true,
+  showRecurring: true,
 };
 
 // Settings

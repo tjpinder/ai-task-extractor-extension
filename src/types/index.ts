@@ -46,6 +46,61 @@ export const CATEGORY_ICONS: Record<TaskCategory, string> = {
 // AI Provider
 export type AIProvider = 'openai' | 'anthropic';
 
+// Extraction mode
+export type ExtractionMode = 'general' | 'email' | 'meeting';
+
+export const EXTRACTION_MODE_LABELS: Record<ExtractionMode, string> = {
+  general: 'General',
+  email: 'Email',
+  meeting: 'Meeting Notes',
+};
+
+export const EXTRACTION_MODE_DESCRIPTIONS: Record<ExtractionMode, string> = {
+  general: 'Works on any web page content',
+  email: 'Optimized for Gmail, Outlook, and email threads',
+  meeting: 'Smart detection for agendas, action items, and decisions',
+};
+
+// Recurring pattern
+export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface RecurringPattern {
+  frequency: RecurringFrequency;
+  dayOfWeek?: number; // 0-6 for weekly
+  dayOfMonth?: number; // 1-31 for monthly
+  description: string; // e.g., "Every Monday", "First of each month"
+}
+
+export const RECURRING_LABELS: Record<RecurringFrequency, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  biweekly: 'Every 2 weeks',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  yearly: 'Yearly',
+};
+
+// Time estimate
+export type TimeEstimate = '15min' | '30min' | '1h' | '2h' | '4h' | '1d' | '2d' | '1w';
+
+export const TIME_ESTIMATE_LABELS: Record<TimeEstimate, string> = {
+  '15min': '15 minutes',
+  '30min': '30 minutes',
+  '1h': '1 hour',
+  '2h': '2 hours',
+  '4h': 'Half day',
+  '1d': '1 day',
+  '2d': '2 days',
+  '1w': '1 week',
+};
+
+// Sub-task
+export interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 // Export destination
 export type ExportDestination = 'clipboard' | 'notion' | 'todoist' | 'clickup' | 'markdown' | 'csv' | 'json' | 'asana' | 'linear';
 
@@ -73,6 +128,11 @@ export interface ExtractedTask {
   context?: string;
   selected: boolean;
   confidence?: number; // 0-1 confidence score from AI
+  subTasks?: SubTask[]; // Nested sub-tasks
+  recurring?: RecurringPattern; // Recurring pattern if detected
+  timeEstimate?: TimeEstimate; // Estimated effort
+  sender?: string; // Email sender (for email mode)
+  attendees?: string[]; // Meeting attendees (for meeting mode)
 }
 
 // Extraction result
@@ -102,6 +162,7 @@ export interface Settings {
   openaiApiKey: string;
   anthropicApiKey: string;
   defaultExport: ExportDestination;
+  defaultExtractionMode: ExtractionMode;
   notionApiKey: string;
   notionDatabaseId: string;
   todoistApiKey: string;
@@ -117,6 +178,8 @@ export interface Settings {
   theme: ThemePreference;
   autoSelectAll: boolean;
   showConfidence: boolean;
+  showTimeEstimates: boolean;
+  showRecurring: boolean;
 }
 
 // Tier limits

@@ -1,4 +1,4 @@
-import type { AIProvider, ExtractedTask, Settings } from '../types';
+import type { AIProvider, ExtractedTask, ExtractionMode, Settings, SubTask, RecurringPattern, TimeEstimate } from '../types';
 import { buildExtractionPrompt } from './prompts';
 import { generateId } from './storage';
 
@@ -93,10 +93,17 @@ function extractJSON(text: string): string {
   return text.trim();
 }
 
+// Valid time estimate values
+const VALID_TIME_ESTIMATES: TimeEstimate[] = ['15min', '30min', '1h', '2h', '4h', '1d', '2d', '1w'];
+
+// Valid recurring frequencies
+const VALID_FREQUENCIES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
+
 export async function extractTasks(
   content: string,
   title: string,
-  settings: Settings
+  settings: Settings,
+  mode: ExtractionMode = 'general'
 ): Promise<ExtractedTask[]> {
   const apiKey = settings.aiProvider === 'openai'
     ? settings.openaiApiKey
@@ -106,7 +113,7 @@ export async function extractTasks(
     throw new Error(`Please configure your ${settings.aiProvider === 'openai' ? 'OpenAI' : 'Anthropic'} API key in settings`);
   }
 
-  const prompt = buildExtractionPrompt(content, title);
+  const prompt = buildExtractionPrompt(content, title, mode);
   const response = await callAI(settings.aiProvider, apiKey, prompt);
 
   try {
@@ -120,20 +127,59 @@ export async function extractTasks(
       dueDate?: string;
       context?: string;
       confidence?: number;
+      subTasks?: Array<{ title: string }>;
+      recurring?: { frequency: string; description?: string; dayOfWeek?: number; dayOfMonth?: number };
+      timeEstimate?: string;
+      sender?: string;
+      attendees?: string[];
     }> };
 
-    return parsed.tasks.map((task) => ({
-      id: generateId(),
-      title: task.title,
-      description: task.description,
-      priority: task.priority || 'medium',
-      category: (task.category as ExtractedTask['category']) || 'action',
-      assignee: task.assignee || undefined,
-      dueDate: task.dueDate || undefined,
-      context: task.context,
-      confidence: typeof task.confidence === 'number' ? task.confidence : 0.7,
-      selected: true,
-    }));
+    return parsed.tasks.map((task) => {
+      // Parse sub-tasks
+      let subTasks: SubTask[] | undefined;
+      if (task.subTasks && Array.isArray(task.subTasks) && task.subTasks.length > 0) {
+        subTasks = task.subTasks.map((st) => ({
+          id: generateId(),
+          title: st.title,
+          completed: false,
+        }));
+      }
+
+      // Parse recurring pattern
+      let recurring: RecurringPattern | undefined;
+      if (task.recurring && task.recurring.frequency && VALID_FREQUENCIES.includes(task.recurring.frequency)) {
+        recurring = {
+          frequency: task.recurring.frequency as RecurringPattern['frequency'],
+          description: task.recurring.description || `Repeats ${task.recurring.frequency}`,
+          dayOfWeek: task.recurring.dayOfWeek,
+          dayOfMonth: task.recurring.dayOfMonth,
+        };
+      }
+
+      // Parse time estimate
+      let timeEstimate: TimeEstimate | undefined;
+      if (task.timeEstimate && VALID_TIME_ESTIMATES.includes(task.timeEstimate as TimeEstimate)) {
+        timeEstimate = task.timeEstimate as TimeEstimate;
+      }
+
+      return {
+        id: generateId(),
+        title: task.title,
+        description: task.description,
+        priority: task.priority || 'medium',
+        category: (task.category as ExtractedTask['category']) || 'action',
+        assignee: task.assignee || undefined,
+        dueDate: task.dueDate || undefined,
+        context: task.context,
+        confidence: typeof task.confidence === 'number' ? task.confidence : 0.7,
+        selected: true,
+        subTasks,
+        recurring,
+        timeEstimate,
+        sender: task.sender || undefined,
+        attendees: task.attendees && task.attendees.length > 0 ? task.attendees : undefined,
+      };
+    });
   } catch {
     throw new Error('Failed to parse AI response. Please try again.');
   }

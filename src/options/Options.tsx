@@ -264,6 +264,50 @@ const Options: React.FC = () => {
                     Show confidence scores on tasks
                   </label>
                 </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="showTimeEstimates"
+                    checked={settings.showTimeEstimates}
+                    onChange={(e) => updateSettings('showTimeEstimates', e.target.checked)}
+                    className="checkbox"
+                  />
+                  <label htmlFor="showTimeEstimates" className="text-sm text-gray-700">
+                    Show time estimates on tasks (Pro)
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="showRecurring"
+                    checked={settings.showRecurring}
+                    onChange={(e) => updateSettings('showRecurring', e.target.checked)}
+                    className="checkbox"
+                  />
+                  <label htmlFor="showRecurring" className="text-sm text-gray-700">
+                    Show recurring patterns on tasks (Pro)
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Extraction Mode
+                  </label>
+                  <select
+                    value={settings.defaultExtractionMode}
+                    onChange={(e) => updateSettings('defaultExtractionMode', e.target.value as Settings['defaultExtractionMode'])}
+                    className="input"
+                  >
+                    <option value="general">General (All pages)</option>
+                    {settings.isPro && <option value="email">Email (Gmail, Outlook)</option>}
+                    {settings.isPro && <option value="meeting">Meeting Notes</option>}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Email and Meeting modes are Pro features with specialized extraction
+                  </p>
+                </div>
               </div>
             </div>
           </div>
