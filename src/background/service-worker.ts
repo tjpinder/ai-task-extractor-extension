@@ -1,20 +1,66 @@
 // Service worker for AI Task Extractor
 
-// Create context menu on install
-chrome.runtime.onInstalled.addListener(() => {
-  // Create context menu for extracting tasks from full page
-  chrome.contextMenus.create({
-    id: 'extract-tasks-page',
-    title: 'Extract Tasks from Page',
-    contexts: ['page'],
-  });
+const SETTINGS_KEY = 'ate_settings';
 
-  // Create context menu for extracting tasks from selected text
-  chrome.contextMenus.create({
-    id: 'extract-tasks-selection',
-    title: 'Extract Tasks from Selection',
-    contexts: ['selection'],
+// Handle external messages from website (for license activation)
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  console.log('[AI Task Extractor SW] External message from:', sender.origin, message);
+
+  const allowedOrigins = ['https://startvest.ai', 'https://www.startvest.ai'];
+  if (!sender.origin || !allowedOrigins.some(origin => sender.origin?.startsWith(origin))) {
+    sendResponse({ success: false, error: 'Unauthorized origin' });
+    return;
+  }
+
+  if (message.type === 'LICENSE_ACTIVATED') {
+    const { email, licenseKey } = message.payload as { email: string; licenseKey: string };
+
+    chrome.storage.local.get(SETTINGS_KEY, (result) => {
+      const settings = result[SETTINGS_KEY] || {};
+      const updatedSettings = {
+        ...settings,
+        isPro: true,
+        licenseKey,
+        licenseEmail: email,
+      };
+
+      chrome.storage.local.set({ [SETTINGS_KEY]: updatedSettings }, () => {
+        console.log('[AI Task Extractor SW] License activated:', email);
+        sendResponse({ success: true });
+      });
+    });
+
+    return true;
+  }
+
+  sendResponse({ success: false, error: 'Unknown message type' });
+});
+
+// Function to create context menus
+function setupContextMenus() {
+  // Remove existing menus first to avoid duplicates
+  chrome.contextMenus.removeAll(() => {
+    // Create context menu for extracting tasks from full page
+    chrome.contextMenus.create({
+      id: 'extract-tasks-page',
+      title: 'Extract Tasks from Page',
+      contexts: ['page'],
+    });
+
+    // Create context menu for extracting tasks from selected text
+    chrome.contextMenus.create({
+      id: 'extract-tasks-selection',
+      title: 'Extract Tasks from Selection',
+      contexts: ['selection'],
+    });
+
+    console.log('[AI Task Extractor] Context menus registered');
   });
+}
+
+// Create context menus on install AND on service worker startup
+chrome.runtime.onInstalled.addListener(() => {
+  setupContextMenus();
 
   // Initialize default settings if not exists
   chrome.storage.local.get('ate_settings', (result) => {
@@ -43,22 +89,42 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('[AI Task Extractor] Extension installed');
 });
 
+// Also register context menus on service worker startup (after refresh/restart)
+chrome.runtime.onStartup.addListener(() => {
+  setupContextMenus();
+});
+
+// Register immediately when service worker loads
+setupContextMenus();
+
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'extract-tasks-page' && tab?.id) {
-    // Store that we want full page extraction, then open popup
+    // Store that we want full page extraction
     chrome.storage.local.set({ ate_extract_mode: 'page' }, () => {
-      chrome.action.openPopup();
+      // Show badge to prompt user to click extension icon
+      chrome.action.setBadgeText({ text: '!' });
+      chrome.action.setBadgeBackgroundColor({ color: '#10B981' });
+      // Clear badge after 5 seconds
+      setTimeout(() => {
+        chrome.action.setBadgeText({ text: '' });
+      }, 5000);
     });
   }
 
   if (info.menuItemId === 'extract-tasks-selection' && tab?.id && info.selectionText) {
-    // Store selected text for extraction, then open popup
+    // Store selected text for extraction
     chrome.storage.local.set({
       ate_extract_mode: 'selection',
       ate_selected_text: info.selectionText,
     }, () => {
-      chrome.action.openPopup();
+      // Show badge to prompt user to click extension icon
+      chrome.action.setBadgeText({ text: '!' });
+      chrome.action.setBadgeBackgroundColor({ color: '#10B981' });
+      // Clear badge after 5 seconds
+      setTimeout(() => {
+        chrome.action.setBadgeText({ text: '' });
+      }, 5000);
     });
   }
 });
@@ -103,45 +169,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-// Handle keyboard shortcuts
-chrome.commands.onCommand.addListener((command) => {
-  if (command === 'extract-tasks') {
-    chrome.storage.local.set({ ate_extract_mode: 'page' }, () => {
-      chrome.action.openPopup();
-    });
-  }
-
-  if (command === 'extract-selection') {
-    // Get selected text from the active tab
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tab = tabs[0];
-      if (tab?.id) {
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: () => window.getSelection()?.toString() || '',
-        }).then((results) => {
-          const selectedText = results[0]?.result;
-          if (selectedText) {
-            chrome.storage.local.set({
-              ate_extract_mode: 'selection',
-              ate_selected_text: selectedText,
-            }, () => {
-              chrome.action.openPopup();
-            });
-          } else {
-            // No selection, fall back to full page
-            chrome.storage.local.set({ ate_extract_mode: 'page' }, () => {
-              chrome.action.openPopup();
-            });
-          }
-        }).catch(() => {
-          // Script injection failed, just open popup
-          chrome.action.openPopup();
-        });
-      }
-    });
-  }
-});
+// Note: Keyboard shortcut Alt+Shift+E uses _execute_action which directly opens the popup
+// No handler needed - Chrome handles it automatically
 
 // Reset daily usage at midnight
 function scheduleDailyReset() {

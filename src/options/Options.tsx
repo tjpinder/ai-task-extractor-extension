@@ -6,7 +6,7 @@ import {
   PRIORITY_LABELS,
   EXPORT_LABELS,
 } from '../types';
-import { getSettings, saveSettings, getHistory, clearHistory, getAnalytics, clearAnalytics, generateId } from '../lib/storage';
+import { getSettings, saveSettings, getHistory, clearHistory, getAnalytics, clearAnalytics, generateId, getDeviceId } from '../lib/storage';
 
 type Tab = 'general' | 'integrations' | 'rules' | 'analytics' | 'history' | 'license';
 
@@ -17,14 +17,22 @@ const Options: React.FC = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [licenseKey, setLicenseKey] = useState('');
-  const [licenseError, setLicenseError] = useState('');
-  const [activating, setActivating] = useState(false);
   const [editingRule, setEditingRule] = useState<ExtractionRule | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Poll for license changes when options page is open (for web-based activation)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const currentSettings = await getSettings();
+      if (currentSettings.isPro !== settings?.isPro) {
+        setSettings(currentSettings);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [settings?.isPro]);
 
   async function loadData() {
     const [loadedSettings, loadedHistory, loadedAnalytics] = await Promise.all([
@@ -57,40 +65,13 @@ const Options: React.FC = () => {
     }
   }
 
-  async function handleActivateLicense() {
-    if (!licenseKey.trim()) {
-      setLicenseError('Please enter a license key');
-      return;
-    }
-
-    setActivating(true);
-    setLicenseError('');
-
-    try {
-      const response = await fetch('https://api.startvest.app/licenses/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          licenseKey: licenseKey.trim(),
-          product: 'AI_TASK_EXTRACTOR_EXTENSION',
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.valid) {
-        updateSettings('isPro', true);
-        updateSettings('licenseKey', licenseKey.trim());
-        await handleSave();
-        setLicenseKey('');
-      } else {
-        setLicenseError(data.message || 'Invalid license key');
-      }
-    } catch {
-      setLicenseError('Failed to validate license. Please try again.');
-    } finally {
-      setActivating(false);
-    }
+  async function openActivationPage() {
+    const deviceId = await getDeviceId();
+    const extensionId = chrome.runtime.id;
+    window.open(
+      `https://startvest.ai/tools/ai-task-extractor/activate?extensionId=${extensionId}&deviceId=${deviceId}`,
+      '_blank'
+    );
   }
 
   async function handleDeactivateLicense() {
@@ -1318,25 +1299,15 @@ const Options: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Have a license key?
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={licenseKey}
-                      onChange={(e) => setLicenseKey(e.target.value)}
-                      placeholder="ATE-XXXX-XXXX-XXXX"
-                      className="input flex-1"
-                    />
-                    <button
-                      onClick={handleActivateLicense}
-                      disabled={activating}
-                      className="btn-primary"
-                    >
-                      {activating ? 'Activating...' : 'Activate'}
-                    </button>
-                  </div>
-                  {licenseError && (
-                    <p className="text-sm text-red-500 mt-1">{licenseError}</p>
-                  )}
+                  <button
+                    onClick={openActivationPage}
+                    className="btn-primary"
+                  >
+                    Activate License
+                  </button>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Click to open the activation page and enter your license key.
+                  </p>
                 </div>
               </div>
             )}

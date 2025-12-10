@@ -1,37 +1,36 @@
 {
   "manifest_version": 3,
-  "name": "AI Task Extractor",
+  "name": "AI Task Extractor - Page to To-Do",
   "version": "1.0.0",
-  "description": "Extract actionable tasks from any page using AI. Export to Notion, Todoist, ClickUp, or copy as a list.",
+  "description": "Extract tasks from any webpage using AI. Turn articles, meeting notes, and emails into actionable to-do items.",
   "permissions": [
     "activeTab",
     "storage",
     "contextMenus",
-    "scripting"
+    "alarms"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://startvest.ai/*",
+      "https://www.startvest.ai/*"
+    ]
+  },
   "commands": {
-    "extract-tasks": {
+    "_execute_action": {
       "suggested_key": {
         "default": "Alt+Shift+E",
         "mac": "Alt+Shift+E"
       },
-      "description": "Extract tasks from current page"
-    },
-    "extract-selection": {
-      "suggested_key": {
-        "default": "Alt+Shift+S",
-        "mac": "Alt+Shift+S"
-      },
-      "description": "Extract tasks from selected text"
+      "description": "Open AI Task Extractor"
     }
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/icon-16.png",
-      "32": "icons/icon-32.png",
-      "48": "icons/icon-48.png",
-      "128": "icons/icon-128.png"
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   },
   "options_page": "options.html",
@@ -46,9 +45,9 @@
     }
   ],
   "icons": {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
 }
